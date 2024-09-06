@@ -1,0 +1,11 @@
+Flask==2.3.3
+Flask-SQLAlchemy==3.0.5
+SQLAlchemy==2.0.20
+Flask-Migrate==3.1.0
+Flask-JWT-Extended==4.5.2
+openai==0.27.0
+Flask-CORS==3.0.10
+werkzeug==2.3.7
+langchain==0.2.16
+langsmith==0.1.115
+python-dotenv==1.0.0
