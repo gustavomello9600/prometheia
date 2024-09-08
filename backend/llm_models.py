@@ -8,8 +8,8 @@ from typing import Optional
 from langchain.callbacks.base import BaseCallbackHandler
 from langchain.schema import LLMResult
 from requests.exceptions import RequestException
-from werkzeug.exceptions import InternalServerError
 from langchain_groq.chat_models import ChatGroq
+from groq import InternalServerError as GroqInternalServerError
 
 
 GROQ_API_KEY = "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"
@@ -23,7 +23,7 @@ class RetryCallbackHandler(BaseCallbackHandler):
         self.current_retry = 0
 
     def on_llm_error(self, error: Exception, **kwargs) -> None:
-        if isinstance(error, (RequestException, InternalServerError)) and self.current_retry < self.max_retries:
+        if isinstance(error, (RequestException, GroqInternalServerError)) and self.current_retry < self.max_retries:
             self.current_retry += 1
             logging.warning(f"API error (attempt {self.current_retry}/{self.max_retries}): {str(error)}. Retrying in {self.retry_delay} seconds...")
             time.sleep(self.retry_delay)

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import styled, { keyframes } from 'styled-components';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -8,8 +8,8 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Send, Mic, Image as ImageIcon, ArrowLeft, Menu, ChevronDown, ChevronUp } from 'lucide-react';
-import { createMessage, getMessages, getLLMResponse, updateConversationTitle } from '@/lib/api';
-import ReactMarkdown from 'react-markdown';
+import { createMessage, getMessages, getLLMResponseStream, updateConversationTitle } from '@/lib/api';
+import ReactMarkdown, { Components } from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface Step {
@@ -226,7 +226,7 @@ export default function ChatInterface({ conversation, setConversation, updateCon
         try {
           const fetchedMessages = await getMessages(conversation.id);
           setMessages(fetchedMessages);
-          const initialExpandedSteps = fetchedMessages.reduce((acc, msg, index) => {
+          const initialExpandedSteps = fetchedMessages.reduce((acc: {[key: string]: boolean}, msg: Message, index: number) => {
             if (msg.steps) {
               acc[index] = false;
             }
@@ -244,38 +244,71 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
   const handleSendMessage = async () => {
     if (input.trim() === '' || !conversation) return;
-
+  
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: input };
-    const updatedMessages = [...messages, userMessage];
-    setMessages(updatedMessages);
+    setMessages(prevMessages => [...prevMessages, userMessage]);
     setInput('');
     setIsWaitingForResponse(true);
-
+  
+    let accumulatedContent = ''; // Local variable for accumulating content
+    const aiMessage: Message = { id: (Date.now() + 1).toString(), type: 'ai', content: '', steps: [] };
+  
     try {
-      await createMessage(conversation.id, userMessage);
-
-      // Prepare the conversation history with distinctive markers
-      const conversationHistory = updatedMessages.map(msg => 
+      await createMessage(conversation.id, userMessage); // Save the user message
+  
+      setMessages(prevMessages => [...prevMessages, aiMessage]);
+  
+      const conversationHistory = [...messages, userMessage].map(msg => 
         `###${msg.type.toUpperCase()}###\n${msg.content}\n###END###`
       ).join('\n');
-      
-      // Send the entire conversation history to the LLM along with the conversation ID
-      const llmResponse = await getLLMResponse(conversationHistory, conversation.id);
-      const aiMessage: Message = {
-        id: Date.now().toString(),
-        type: 'ai',
-        content: llmResponse.message,
-        steps: llmResponse.steps,
-      };
-      await createMessage(conversation.id, aiMessage);
-
-      setMessages(prevMessages => [...prevMessages, aiMessage]);
-      updateConversation({
-        ...conversation,
-        messages: [...conversation.messages, userMessage, aiMessage],
+  
+      const streamHandler = await getLLMResponseStream(conversationHistory, conversation.id);
+  
+      // Create a promise that resolves when the stream ends
+      await new Promise<void>((resolve) => {
+        streamHandler((chunk) => {
+          if (chunk.type === 'content') {
+            accumulatedContent += chunk.data; // Accumulate the content
+            
+            setMessages(prevMessages => {
+              const updatedMessages = [...prevMessages];
+              const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+              if (aiMessageIndex !== -1) {
+                updatedMessages[aiMessageIndex].content = accumulatedContent;
+              }
+              return updatedMessages;
+            });
+  
+          } else if (chunk.type === 'steps') {
+            setMessages(prevMessages => {
+              const updatedMessages = [...prevMessages];
+              const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+              if (aiMessageIndex !== -1) {
+                updatedMessages[aiMessageIndex].steps = chunk.data;
+              }
+              return updatedMessages;
+            });
+  
+          } else if (chunk.type === 'error') {
+            console.error('Error from server:', chunk.data);
+            throw new Error('Stream encountered an error.');
+          } else if (chunk.type === 'end') {
+            resolve(); // Resolve the promise when the stream ends
+            console.log('Stream ended.');
+          }
+        });
       });
+  
+      // Save the complete AI message after stream completion
+      await createMessage(conversation.id, {
+        ...aiMessage,
+        content: accumulatedContent,
+      });
+      console.log('AI message saved successfully.');
+  
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error in handleSendMessage:', error);
+  
     } finally {
       setIsWaitingForResponse(false);
     }
@@ -331,7 +364,7 @@ export default function ChatInterface({ conversation, setConversation, updateCon
             ...prev,
             [messageId]: [...(prev[messageId] || []), index],
           }));
-          if (index === message.steps.length - 1) {
+          if (message?.steps && index === message.steps.length - 1) {
             setInitialRevealComplete(prev => ({
               ...prev,
               [messageId]: true
@@ -350,13 +383,13 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   };
 
   const customRenderers = {
-    h1: ({node, ...props}) => <h1 style={{fontSize: '2rem', margin: '20px 0', lineHeight: '1.2'}} {...props} />,
-    h2: ({node, ...props}) => <h2 style={{fontSize: '1.5rem', margin: '18px 0', lineHeight: '1.3'}} {...props} />,
-    h3: ({node, ...props}) => <h3 style={{fontSize: '1.375rem', margin: '16px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props} />,
-    h4: ({node, ...props}) => <h4 style={{fontSize: '1.125rem', margin: '14px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props} />,
-    h5: ({node, ...props}) => <h5 style={{fontSize: '1rem', margin: '12px 0', lineHeight: '1.4', fontWeight: 'bold'}} {...props} />,
-    h6: ({node, ...props}) => <h6 style={{fontSize: '0.875rem', margin: '10px 0', lineHeight: '1.4'}} {...props} />,
-    code: ({node, inline, className, children, ...props}) => {
+    h1: ({node, ...props}: {node: any, [key: string]: any}) => <h1 style={{fontSize: '2rem', margin: '20px 0', lineHeight: '1.2'}} {...props} />,
+    h2: ({node, ...props}: {node: any, [key: string]: any}) => <h2 style={{fontSize: '1.5rem', margin: '18px 0', lineHeight: '1.3'}} {...props} />,
+    h3: ({node, ...props}: {node: any, [key: string]: any}) => <h3 style={{fontSize: '1.375rem', margin: '16px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props} />,
+    h4: ({node, ...props}: {node: any, [key: string]: any}) => <h4 style={{fontSize: '1.125rem', margin: '14px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props} />,
+    h5: ({node, ...props}: {node: any, [key: string]: any}) => <h5 style={{fontSize: '1rem', margin: '12px 0', lineHeight: '1.4', fontWeight: 'bold'}} {...props} />,
+    h6: ({node, ...props}: {node: any, [key: string]: any}) => <h6 style={{fontSize: '0.875rem', margin: '10px 0', lineHeight: '1.4'}} {...props} />,
+    code: ({node, inline, className, children, ...props}: {node: any, inline: boolean, className: string, children: React.ReactNode, [key: string]: any}) => {
       const match = /language-(\w+)/.exec(className || '')
       return !inline ? (
         <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto">
@@ -370,26 +403,26 @@ export default function ChatInterface({ conversation, setConversation, updateCon
         </code>
       )
     },
-    ul: ({node, ...props}) => (
+    ul: ({node, ...props}: {node: any, [key: string]: any}) => (
       <ul style={{
         paddingLeft: '1.5rem',
         marginBottom: '1rem',
         listStyleType: 'disc'
       }} {...props} />
     ),
-    li: ({node, ...props}) => (
+    li: ({node, ...props}: {node: any, [key: string]: any}) => (
       <li style={{
         marginBottom: '0.5rem'
       }} {...props} />
     ),
-    ol: ({node, ...props}) => (
+    ol: ({node, ...props}: {node: any, [key: string]: any}) => (
       <ol style={{
         paddingLeft: '1.5rem',
         marginBottom: '1rem',
         listStyleType: 'decimal'
       }} {...props} />
     ),
-    p: ({node, ...props}) => <p style={{marginBottom: '1rem'}} {...props} />
+    p: ({node, ...props}: {node: any, [key: string]: any}) => <p style={{marginBottom: '1rem'}} {...props} />
   };
   
 
@@ -442,7 +475,7 @@ export default function ChatInterface({ conversation, setConversation, updateCon
                 ) : (
                   <ReactMarkdown 
                     className="text-base prose dark:prose-invert max-w-none"
-                    components={customRenderers}
+                    components={customRenderers as Components}
                   >
                     {message.content}
                   </ReactMarkdown>

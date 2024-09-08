@@ -2,13 +2,16 @@ import logging
 import os
 from datetime import timedelta
 import uuid
+import json
+import time
 
 from dotenv import load_dotenv
-from flask import (Flask, request, jsonify, session, redirect,
-                   url_for, send_from_directory)
+from flask import (Flask, request, jsonify, session,
+                   send_from_directory, Response, stream_with_context)
 from flask_cors import CORS, cross_origin
 from flask_jwt_extended import (JWTManager, jwt_required,
-                                  get_jwt_identity)
+                                  get_jwt_identity, decode_token)
+import jwt
 from flask_migrate import Migrate
 from flask_socketio import SocketIO, emit
 from flask_sqlalchemy import SQLAlchemy
@@ -29,6 +32,9 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+
+app.secret_key = os.environ.get('FLASK_SECRET_KEY') or os.urandom(24)
+
 CORS(app,
      resources={r"/api/*": {"origins": ["http://localhost:3000", "http://127.0.0.1:3000"]}},
      supports_credentials=True,
@@ -92,6 +98,78 @@ def llm_interaction_route():
         run.end(outputs={"result": result})
 
     return jsonify(result), 200
+
+# Add this new route for streaming responses
+@app.route('/llm_stream', methods=['GET', 'POST'])
+@cross_origin(supports_credentials=True)
+def llm_interaction_stream():
+    if request.method == 'POST':
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "No authorization header"}), 401
+        
+        try:
+            access_token = auth_header.split(' ')[1]
+            decoded_token = decode_token(access_token)
+            user_id = decoded_token['sub']
+        except jwt.exceptions.PyJWTError as e:
+            return jsonify({"error": f"Invalid token: {str(e)}"}), 401
+
+        data = request.get_json()
+        conversation_history = data['prompt']
+        conversation_id = int(data['conversation_id'])
+
+        # Store the conversation data in the session or database
+        session['conversation_data'] = {
+            'user_id': user_id,
+            'conversation_history': conversation_history,
+            'conversation_id': conversation_id
+        }
+
+        return jsonify({"message": "Conversation initialized", "conversation_id": conversation_id}), 200
+
+    elif request.method == 'GET':
+        conversation_id = int(request.args.get('conversation_id'))
+        if not conversation_id:
+            return jsonify({"error": "No conversation_id provided"}), 400
+
+        # Retrieve the conversation data
+        conversation_data = session.get('conversation_data')
+        print(f"conversation_data = {conversation_data}")
+        print(f"conversation_id from session = {conversation_data['conversation_id']} of type {type(conversation_data['conversation_id'])}")
+        print(f"conversation_id from request = {conversation_id} of type {type(conversation_id)}")
+        if conversation_data['conversation_id'] != conversation_id:
+            return jsonify({f"error": "Invalid or expired conversation. conversation_data = {conversation_data}"}), 400
+
+        user_id = conversation_data['user_id']
+        conversation_history = conversation_data['conversation_history']
+
+        def generate():
+            user = User.query.get(user_id)
+            user_name = user.name if user else "Unknown User"
+            conversation_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"conversation:{conversation_id}"))
+
+            with trace("llm_interaction_stream",
+                       run_type="chain",
+                       tags=[str(user_id), user_name],
+                       metadata={"conversation_id": conversation_uuid}
+                       ) as run:
+                for chunk in llm_interaction.get_response_stream(conversation_history):
+                    print(f"Sending chunk: {chunk}")
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                print("Stream ended")
+                yield "data: {\"type\": \"end\"}\n\n"
+                run.end()
+
+        return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+    else:
+        return jsonify({"error": "Method not allowed"}), 405
+
+def empty_stream():
+    while True:
+        yield ': keepalive\n\n'
+        time.sleep(15)
 
 # Initialize SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")

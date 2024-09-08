@@ -1,5 +1,13 @@
 import axios from 'axios';
 import { getSession, useSession, signOut } from 'next-auth/react';
+import { Session } from 'next-auth';
+
+declare module 'next-auth' {
+  interface Session {
+    access_token?: string;
+    refresh_token?: string;
+  }
+}
 
 const API_BASE_URL = 'http://localhost:5000';
 
@@ -230,3 +238,90 @@ export const getLLMResponse = async (conversationHistory: string, conversationId
     throw error;
   }
 };
+
+export const getLLMResponseStream = async (conversationHistory: string, conversationId: number) => {
+  const session = await getSession();
+  if (!session?.access_token) {
+    throw new Error('No access token available');
+  }
+
+  const baseUrl = new URL('/llm_stream', api.defaults.baseURL);
+
+  // First, send the POST request to initialize the conversation
+  try {
+    const response = await api.post(baseUrl.toString(), {
+      prompt: conversationHistory,
+      conversation_id: conversationId
+    });
+
+    if (response.status !== 200) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const result = response.data;
+    console.log('POST response:', result);
+
+    // If the POST request is successful, set up the EventSource
+    return new Promise<(onChunk: (chunk: any) => void) => void>((resolve, reject) => {
+      const eventSource = new EventSource(`${baseUrl.toString()}?conversation_id=${conversationId}`, {
+        withCredentials: true
+      });
+
+      console.log('EventSource created');
+
+      let retryCount = 0;
+      const maxRetries = 3;
+
+      eventSource.onopen = () => {
+        console.log('EventSource connection opened');
+        retryCount = 0;
+        resolve((onChunk) => {
+          eventSource.onmessage = (event) => {
+            console.log('Received message in api.ts:', event.data);
+            try {
+              const data = JSON.parse(event.data);
+              if (data.type === 'end') {
+                console.log('Stream ended');
+                eventSource.close();
+                onChunk(data); // Send the 'end' event to the handler
+              } else {
+                onChunk(data);
+              }
+            } catch (error) {
+              console.error('Error parsing SSE data:', error);
+              onChunk({ type: 'error', data: 'Error parsing server data' });
+            }
+          };
+
+          // Return a function to close the EventSource
+          return () => {
+            eventSource.close();
+          };
+        });
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('EventSource error:', error);
+        if (retryCount < maxRetries) {
+          retryCount++;
+          console.log(`Retrying connection (${retryCount}/${maxRetries})...`);
+        } else {
+          console.error('Max retries reached. Closing EventSource.');
+          eventSource.close();
+          reject(new Error('EventSource connection failed after max retries'));
+        }
+      };
+    });
+
+  } catch (error) {
+    console.error('Error in getLLMResponseStream:', error);
+    throw error;
+  }
+};
+
+export interface Message {
+  id: string;
+  type: 'user' | 'ai';
+  content: string;
+  steps?: { step: string; explanation: string }[];
+}

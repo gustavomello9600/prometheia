@@ -336,6 +336,9 @@ export default function LandingPage() {
 
   useEffect(() => {
     setTheme('light')
+    return () => {
+      setTheme('system')
+    }
   }, [setTheme])
 
   const scrollToSection = (ref: React.RefObject<HTMLElement>) => {

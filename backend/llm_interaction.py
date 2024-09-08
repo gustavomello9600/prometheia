@@ -1,7 +1,7 @@
 import os
 import logging
 import json
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Generator
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
@@ -49,8 +49,9 @@ class LLMInteraction:
         self.strategy_parser = PydanticOutputParser(pydantic_object=StrategySelection)
         self.reasoning_parser = PydanticOutputParser(pydantic_object=MultiStepReasoning)
 
-    def get_response(self, conversation_history):
-        logging.info("Processing conversation history")
+    @traceable(run_type="chain")
+    def get_response_stream(self, conversation_history: str) -> Generator[Dict[str, Any], None, None]:
+        logging.info("Processing conversation history for streaming")
         messages = conversation_history.split('###END###\n')
         messages = [msg.strip() for msg in messages if msg.strip()]
 
@@ -67,9 +68,86 @@ class LLMInteraction:
         strategy = self.select_strategy(intention, combined_input)
         logging.info(f"Selected strategy: {strategy.strategy}")
 
-        response = self.execute_strategy(strategy, intention, conversation_history)
-        logging.info("Response generated successfully")
-        return response
+        yield from self.execute_strategy_stream(strategy, intention, conversation_history, combined_input)
+
+    def execute_strategy_stream(self, strategy, intention, conversation_history, combined_input):
+        logging.info(f"Executing strategy: {strategy.strategy}")
+        if strategy.strategy == 1:
+            yield from self.standard_response_stream(intention, conversation_history)
+        elif strategy.strategy == 2:
+            yield from self.multi_step_reasoning_stream(intention, conversation_history, combined_input)
+        elif strategy.strategy == 3:
+            yield from self.plan_actions_stream(intention, conversation_history, strategy)
+        elif strategy.strategy == 4:
+            yield from self.multi_agent_workflow_stream(intention, conversation_history, strategy)
+        else:
+            logging.warning(f"Unknown strategy {strategy.strategy}, falling back to multi-step reasoning")
+            yield from self.multi_step_reasoning_stream(intention, conversation_history, combined_input)
+
+    @traceable(run_type="chain")
+    def standard_response_stream(self, intention, conversation_history):
+        logging.info("Generating standard response stream")
+        prompt = ChatPromptTemplate.from_messages(PROMPTS['standard_response'])
+        response_chain = prompt | self.smarter_llm
+
+        for chunk in response_chain.stream({"DEFAULT_HEADER": PROMPTS['default_header'], "intention": intention, "conversation_history": conversation_history}):
+            if chunk.content:
+                yield {"type": "content", "data": chunk.content}
+
+    @traceable(run_type="chain")
+    def multi_step_reasoning_stream(self, intention, conversation_history, combined_input):
+        logging.info("Performing multi-step reasoning stream")
+        prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning'])
+        
+        retry_parser = RetryOutputParser.from_llm(
+            parser=self.reasoning_parser,
+            llm=self.function_calling_llm,
+            max_retries=3
+        )
+
+        reasoning_chain = prompt | self.function_calling_llm
+        
+        # Generate steps non-streaming
+        raw_output = reasoning_chain.invoke({
+            "conversation_history": conversation_history,
+            "combined_input": combined_input
+        })
+
+        # Extract the text content from the raw output
+        if isinstance(raw_output, dict) and 'generations' in raw_output:
+            text_output = raw_output['generations'][0][0].text
+        elif hasattr(raw_output, 'content'):
+            text_output = raw_output.content
+        else:
+            text_output = str(raw_output)
+
+        # Use parse_with_prompt to handle the retry logic
+        steps_data = retry_parser.parse_with_prompt(text_output, prompt)
+
+        # Yield steps as a single chunk
+        yield {"type": "steps", "data": [step.dict() for step in steps_data.steps]}
+
+        message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
+        for chunk in (message_prompt | self.smarter_llm).stream({
+            "DEFAULT_HEADER": PROMPTS['default_header'],
+            "intention": intention,
+            "steps": json.dumps([step.dict() for step in steps_data.steps]),
+            "conversation_history": conversation_history
+        }):
+            if chunk.content:
+                yield {"type": "content", "data": chunk.content}
+
+    @traceable(run_type="chain")
+    def plan_actions_stream(self, intention, conversation_history, strategy_data):
+        logging.info("Planning actions stream")
+        # Implement streaming for plan_actions
+        yield {"type": "content", "data": "Plan Actions Strategy not fully implemented for streaming."}
+
+    @traceable(run_type="chain")
+    def multi_agent_workflow_stream(self, intention, conversation_history, strategy_data):
+        logging.info("Executing multi-agent workflow stream")
+        # Implement streaming for multi_agent_workflow
+        yield {"type": "content", "data": "Multi-Agent Workflow Strategy not fully implemented for streaming."}
 
     @traceable(run_type="chain")
     def digest_conversation_history(self, conversation_history):
@@ -122,164 +200,11 @@ class LLMInteraction:
         logging.info(f"Output from strategy selector: {strategy_data}")
         return strategy_data
 
-    def execute_strategy(self, strategy, intention, conversation_history):
-        logging.info(f"Executing strategy: {strategy.strategy}")
-        if strategy.strategy == 1:
-            return self.standard_response(intention, conversation_history)
-        elif strategy.strategy == 2:
-            return self.multi_step_reasoning(intention, conversation_history)
-        elif strategy.strategy == 3:
-            return self.plan_actions(intention, conversation_history, strategy)
-        elif strategy.strategy == 4:
-            return self.multi_agent_workflow(intention, conversation_history, strategy)
-        else:
-            logging.warning(f"Unknown strategy {strategy.strategy}, falling back to multi-step reasoning")
-            return self.multi_step_reasoning(intention, conversation_history)
-
-    @traceable(run_type="chain")
-    def standard_response(self, intention, conversation_history):
-        logging.info("Generating standard response")
-        prompt = ChatPromptTemplate.from_messages(PROMPTS['standard_response'])
-        response_chain = prompt | self.smarter_llm | StrOutputParser()
-
-        message = response_chain.invoke({"DEFAULT_HEADER": PROMPTS['default_header'], "intention": intention, "conversation_history": conversation_history})
-
-        logging.info("Standard response generated")
-        logging.info(f"Response: {message}")
-        return {"message": message, "steps": []}
-
-    @traceable(run_type="chain")
-    def multi_step_reasoning(self, intention, conversation_history):
-        logging.info("Performing multi-step reasoning")
-        prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning'])
-        
-        retry_parser = RetryOutputParser.from_llm(
-            parser=self.reasoning_parser,
-            llm=self.function_calling_llm,
-            max_retries=3
-        )
-
-        # Create the chain without the retry parser
-        reasoning_chain = prompt | self.function_calling_llm
-        
-        # Extract the last message from conversation history
-        messages = conversation_history.split('###END###\n')
-        last_message = messages[-1].split('\n', 1)[1] if messages else ""
-
-        combined_input = f"{last_message}\n\nRelevant points from previous conversation:\n{self.digest_conversation_history(conversation_history)}"
-        
-        # Invoke the chain and get the raw output
-        raw_output = reasoning_chain.invoke({
-            "conversation_history": conversation_history,
-            "combined_input": combined_input
-        })
-        
-        if isinstance(raw_output, dict) and 'generations' in raw_output:
-            text_output = raw_output['generations'][0][0].text
-        elif hasattr(raw_output, 'content'):
-            text_output = raw_output.content
-        else:
-            text_output = str(raw_output)
-
-        response = retry_parser.parse_with_prompt(text_output, prompt)
-        
-        steps = response.steps
-
-        logging.info(f"Generated {len(steps)} reasoning steps")
-        for i, step in enumerate(steps, 1):
-            logging.info(f"Step {i}: {step.step}")
-            logging.info(f"Explanation: {step.explanation}")
-
-        message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
-
-        message = (message_prompt | self.smarter_llm | StrOutputParser()).invoke(
-            {
-                "DEFAULT_HEADER": PROMPTS['default_header'],
-                "intention": intention,
-                "steps": json.dumps([step.dict() for step in steps]),
-                "conversation_history": conversation_history
-            }
-        )
-
-        logging.info("Multi-step reasoning completed successfully")
-        logging.info(f"Final response: {message}")
-        return {
-            "message": message,
-            "steps": [step.dict() for step in steps]
-        }
-
-    @traceable(run_type="chain")
-    def plan_actions(self, intention, conversation_history, strategy_data):
-        logging.info("Planning actions")
-
-        message = f"""
-        # Plan Actions Strategy
-
-        ## Conversation History
-        {conversation_history}
-
-        ## Inferred Intention
-        {intention}
-
-        ## Strategy Rationale
-        {strategy_data.rationale}
-
-        This strategy is not yet fully implemented. Here's a placeholder response:
-
-        1. Action 1: Description of action 1
-        2. Action 2: Description of action 2
-        3. Action 3: Description of action 3
-        """
-
-        response = {
-            "message": message,
-            "steps": [
-                {"step": "Action 1", "explanation": "Description of action 1"},
-                {"step": "Action 2", "explanation": "Description of action 2"},
-                {"step": "Action 3", "explanation": "Description of action 3"}
-            ]
-        }
-        logging.info(f"Planned actions: {response}")
-        return response
-
-    @traceable(run_type="chain")
-    def multi_agent_workflow(self, intention, conversation_history, strategy_data):
-        logging.info("Executing multi-agent workflow")
-
-        message = f"""
-        # Multi-Agent Workflow Strategy
-
-        ## Conversation History
-        {conversation_history}
-
-        ## Inferred Intention
-        {intention}
-
-        ## Strategy Rationale
-        {strategy_data.rationale}
-
-        This strategy is not yet fully implemented. Here's a placeholder response:
-
-        1. Agent 1 Task: Description of Agent 1's task
-        2. Agent 2 Task: Description of Agent 2's task
-        3. Agent 3 Task: Description of Agent 3's task
-        """
-
-        response = {
-            "message": message,
-            "steps": [
-                {"step": "Agent 1 Task", "explanation": "Description of Agent 1's task"},
-                {"step": "Agent 2 Task", "explanation": "Description of Agent 2's task"},
-                {"step": "Agent 3 Task", "explanation": "Description of Agent 3's task"}
-            ]
-        }
-        logging.info(f"Multi-agent workflow: {response}")
-        return response
-
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
     import os
+    import asyncio
 
     # Load environment variables from .env file
     load_dotenv()
@@ -300,10 +225,25 @@ if __name__ == "__main__":
 
     llm_interaction = LLMInteraction()
 
-    # Add trace for get_response call
-    with trace("get_response_test", run_type="chain") as run:
-        result = llm_interaction.get_response("###USER###\nI've been trying to lose weight for months, but nothing seems to work. What am I doing wrong?\n###END###")
-        run.end(outputs={"result": result})
+    # Test conversation history
+    test_conversation = """###USER###
+I've been trying to lose weight for months, but nothing seems to work. What am I doing wrong?
+###END###"""
 
-    print(result)
+    # Function to process the stream
+    async def process_stream():
+        print("Starting stream processing...")
+        async for chunk in llm_interaction.get_response_stream(test_conversation):
+            if chunk['type'] == 'steps':
+                print("\nSteps:")
+                for step in chunk['data']:
+                    print(f"- {step['step']}")
+                    print(f"  Explanation: {step['explanation']}")
+            elif chunk['type'] == 'content':
+                print(chunk['data'], end='', flush=True)
+        print("\nStream processing completed.")
+
+    # Run the async function
+    asyncio.run(process_stream())
+
     logging.info("Test execution completed")
