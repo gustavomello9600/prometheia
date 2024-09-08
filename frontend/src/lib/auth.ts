@@ -1,6 +1,39 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { JWT } from "next-auth/jwt";
 import { login } from "./api";
+
+// Extend the User type to include access_token, refresh_token, name, and image
+declare module "next-auth" {
+  interface User {
+    id: string;
+    email: string;
+    name?: string | null;
+    image?: string | null;
+    access_token: string;
+    refresh_token: string;
+  }
+
+  interface Session {
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+      image?: string | null;
+    };
+    access_token: string;
+    refresh_token: string;
+  }
+}
+
+declare module "next-auth/jwt" {
+  interface JWT {
+    id: string;
+    email: string;
+    access_token: string;
+    refresh_token: string;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -20,6 +53,8 @@ export const authOptions: NextAuthOptions = {
             return { 
               id: response.user.id, 
               email: response.user.email,
+              name: response.user.name,
+              image: response.user.image,
               access_token: response.access_token,
               refresh_token: response.refresh_token
             };
@@ -43,11 +78,9 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        session.access_token = token.access_token as string;
-        session.refresh_token = token.refresh_token as string;
-      }
+      session.user.id = token.id;
+      session.access_token = token.access_token as string;
+      session.refresh_token = token.refresh_token as string;
       return session;
     }
   },

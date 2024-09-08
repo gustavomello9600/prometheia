@@ -85,11 +85,18 @@ Remember:
         4. Multi-Agent Workflow 
         
         ## Examples:
-        Inferred intention: Current weather information
-        User query: What's the weather like today?
+        Inferred intention: Guidance on initiating a learning journey into sustainable farming methods, with the goal of understanding eco-friendly agricultural techniques, their implementation, and their impact on food production and environmental conservation
+        User query: I'm interested in learning about sustainable agriculture practices. Where should I start?
         Selected strategy: {{ 
-        "rationale": "This query requires access to real-time weather data, which is external information. A tool or API call is necessary to fetch current weather information.",
-        "strategy": 3 
+        "rationale": "This query can be answered with a standard response providing an overview of sustainable agriculture and suggesting initial learning resources. It doesn't require complex reasoning or external tools.",
+        "strategy": 1 
+        }}
+
+        Inferred intention: The user wants to enhance their oratory abilities and presentation techniques in order to deliver a compelling and confident talk at a professional conference, potentially advancing their career or academic standing
+        User query: How can I improve my public speaking skills for an upcoming conference presentation?
+        Selected strategy: {{ 
+        "rationale": "This query can be addressed with a straightforward response outlining key public speaking techniques and tips. It doesn't require complex reasoning or external resources.",
+        "strategy": 1 
         }}
 
         Inferred intention: The user wants to identify and correct ineffective weight loss strategies in order to achieve their desired body composition and improve their health
@@ -106,13 +113,6 @@ Remember:
         "strategy": 2 
         }}
 
-        Inferred intention: Comprehensive travel planning for an extended Southeast Asian journey, including destination recommendations, cultural insights, logistical preparation, and safety considerations to ensure a fulfilling and smooth long-term travel experience
-        User query: I'm planning a trip to Southeast Asia for three months. Where should I go and what should I be prepared for?
-        Selected strategy: {{ 
-        "rationale": "This query requires access to up-to-date travel information, visa requirements, and local conditions. It involves multiple steps and potentially the use of travel planning tools or resources.",
-        "strategy": 3 
-        }}
-
         Inferred intention: The user seeks cost-effective marketing tactics to boost their startup's visibility and customer acquisition, aiming to overcome financial constraints while maximizing growth potential and market presence
         User query: My startup is struggling to gain traction. How can I improve our marketing strategy on a limited budget?
         Selected strategy: {{ 
@@ -120,18 +120,18 @@ Remember:
         "strategy": 2 
         }}
 
-        Inferred intention: Guidance on initiating a learning journey into sustainable farming methods, with the goal of understanding eco-friendly agricultural techniques, their implementation, and their impact on food production and environmental conservation
-        User query: I'm interested in learning about sustainable agriculture practices. Where should I start?
+        Inferred intention: Current weather information
+        User query: What's the weather like today?
         Selected strategy: {{ 
-        "rationale": "This query can be answered with a standard response providing an overview of sustainable agriculture and suggesting initial learning resources. It doesn't require complex reasoning or external tools.",
-        "strategy": 1 
+        "rationale": "This query requires access to real-time weather data, which is external information. A tool or API call is necessary to fetch current weather information.",
+        "strategy": 3 
         }}
 
-        Inferred intention: The user wants to enhance their oratory abilities and presentation techniques in order to deliver a compelling and confident talk at a professional conference, potentially advancing their career or academic standing
-        User query: How can I improve my public speaking skills for an upcoming conference presentation?
+        Inferred intention: Comprehensive travel planning for an extended Southeast Asian journey, including destination recommendations, cultural insights, logistical preparation, and safety considerations to ensure a fulfilling and smooth long-term travel experience
+        User query: I'm planning a trip to Southeast Asia for three months. Where should I go and what should I be prepared for?
         Selected strategy: {{ 
-        "rationale": "This query can be addressed with a straightforward response outlining key public speaking techniques and tips. It doesn't require complex reasoning or external resources.",
-        "strategy": 1 
+        "rationale": "This query requires access to up-to-date travel information, visa requirements, and local conditions. It involves multiple steps and potentially the use of travel planning tools or resources.",
+        "strategy": 3 
         }}
 
         Inferred intention: Analysis of AI's projected impact on future employment landscapes, including potential job displacement, creation of new roles, and necessary skill adaptations, to help the user prepare for or navigate upcoming workforce transformations

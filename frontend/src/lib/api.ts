@@ -1,26 +1,33 @@
 import axios from 'axios';
-import { getSession, useSession, signOut } from 'next-auth/react';
+import { getSession, signOut } from 'next-auth/react';
 import { Session } from 'next-auth';
 
 declare module 'next-auth' {
   interface Session {
-    access_token?: string;
-    refresh_token?: string;
+    user: {
+      id: string;
+      email: string;
+      name?: string | null;
+      image?: string | null;
+    };
+    access_token: string;
+    refresh_token: string;
   }
 }
 
 const API_BASE_URL = 'http://localhost:5000';
 
-// Add this function
-async function updateSession(newData: { access_token: string }) {
-  const { data: session, update } = useSession();
+// Remove this function
+// async function updateSession(newData: { access_token: string }) { ... }
+
+// Instead, create a function that takes the session as a parameter
+export const updateSessionToken = async (session: Session, newAccessToken: string) => {
   if (session) {
-    await update({
-      ...session,
-      access_token: newData.access_token,
-    });
+    // Update the session object directly
+    session.access_token = newAccessToken;
+    // You might need to implement a method to persist this change, depending on your setup
   }
-}
+};
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -80,27 +87,32 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       return new Promise((resolve, reject) => {
-        refreshApi.post('/api/auth/refresh', {}, {
-          headers: { 'Authorization': async () => `Bearer ${(await getSession())?.refresh_token}` }
-        })
-          .then(async ({ data }) => {
-            const { access_token } = data;
-            // Update the session with the new access token
-            await updateSession({ access_token });
-            api.defaults.headers.common['Authorization'] = 'Bearer ' + access_token;
-            originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
-            processQueue(null, access_token);
-            resolve(api(originalRequest));
+        getSession().then(session => {
+          refreshApi.post('/api/auth/refresh', {}, {
+            headers: { 'Authorization': `Bearer ${session?.refresh_token || ''}` }
           })
-          .catch((err) => {
-            processQueue(err, null);
-            reject(err);
-            // If refresh fails, sign out the user
-            signOut({ callbackUrl: '/login' });
-          })
-          .finally(() => {
-            isRefreshing = false;
-          });
+            .then(async ({ data }) => {
+              const { access_token } = data;
+              if (session) {
+                await updateSessionToken(session, access_token);
+              }
+              api.defaults.headers.common['Authorization'] = 'Bearer ' + access_token;
+              originalRequest.headers['Authorization'] = 'Bearer ' + access_token;
+              processQueue(null, access_token);
+              resolve(api(originalRequest));
+            })
+            .catch((err) => {
+              processQueue(err, null);
+              reject(err);
+              // If refresh fails, sign out the user
+              signOut({ callbackUrl: '/login' });
+            })
+            .finally(() => {
+              isRefreshing = false;
+            });
+        }).catch(err => {
+          reject(err);
+        });
       });
     }
 

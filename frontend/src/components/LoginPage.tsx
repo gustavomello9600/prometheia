@@ -102,7 +102,7 @@ export default function LoginPage() {
             <LogIn className="mr-2 h-4 w-4" /> Log In
           </Button>
           <p className="text-sm text-center">
-            Don't have an account? <Link href="/create-account" className="hover:underline hover:text-accent-foreground">Sign up</Link>
+            Don&apos;t have an account? <Link href="/create-account" className="hover:underline hover:text-accent-foreground">Sign up</Link>
           </p>
         </CardFooter>
       </Card>

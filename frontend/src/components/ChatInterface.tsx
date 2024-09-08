@@ -493,14 +493,14 @@ export default function ChatInterface({ conversation, setConversation, updateCon
                           return (
                             <Step key={stepIndex} isActive={isActive} delay={delay}>
                               <Bullet isActive={isActive} delay={delay} />
-                              {stepIndex < message.steps.length - 1 && <Line isActive={isActive} delay={delay} />}
+                              {message.steps && stepIndex < message.steps.length - 1 && <Line isActive={isActive} delay={delay} />}
                               <StepContent>
                                 <StepHeader onClick={() => toggleExplanation(message.id, stepIndex)}>
                                   <StepText isActive={isActive} delay={delay}>{step.step}</StepText>
                                   {expandedExplanations[`${message.id}-${stepIndex}`] ? (
-                                    <ChevronUp size={16} />
+                                    <ChevronUp size={16} className="ml-2" />
                                   ) : (
-                                    <ChevronDown size={16} />
+                                    <ChevronDown size={16} className="ml-2" />
                                   )}
                                 </StepHeader>
                                 {expandedExplanations[`${message.id}-${stepIndex}`] && (

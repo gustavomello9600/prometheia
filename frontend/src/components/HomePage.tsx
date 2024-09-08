@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { Session } from 'next-auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,7 +14,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
 import { format } from 'date-fns';
+import { Message } from '@/lib/api';
 
+// Define the Conversation interface
 interface Conversation {
   id: number;
   title: string;
@@ -73,23 +76,23 @@ export default function HomePage() {
   }, [status, session?.user?.id]);
 
   useEffect(() => {
+    const fetchUserConversations = async () => {
+      try {
+        const data = await api.getConversations();
+        setConversations(data);
+      } catch (error) {
+        console.error('Error fetching conversations:', error);
+        if (axios.isAxiosError(error) && error.response?.status === 401) {
+          // Token might be expired, try to refresh
+          await update();
+        }
+      }
+    };
+
     if (status === 'authenticated' && session) {
       fetchUserConversations();
     }
-  }, [status, session]);
-
-  const fetchUserConversations = async () => {
-    try {
-      const data = await api.getConversations();
-      setConversations(data);
-    } catch (error) {
-      console.error('Error fetching conversations:', error);
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        // Token might be expired, try to refresh
-        await update();
-      }
-    }
-  };
+  }, [status, session, update]);
 
   const toggleSidebar = () => {
     if (isMobile) {
@@ -181,7 +184,7 @@ export default function HomePage() {
         setActiveConversation(updatedActiveConversation);
       }
     }
-  }, [conversations]);
+  }, [conversations, activeConversation]);
 
   const sortConversations = (convs: Conversation[]) => {
     return [...convs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

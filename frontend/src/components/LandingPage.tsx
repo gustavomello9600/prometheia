@@ -4,11 +4,19 @@ import React, { useRef, useState, useEffect } from 'react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel"
+import useEmblaCarousel from 'embla-carousel-react'
 import { Clipboard, Lightbulb, Users, Rocket, Brush, Bolt, Briefcase, ChevronDown, ChevronUp } from 'lucide-react'
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
 import styled, { keyframes } from 'styled-components'
 import { useTheme } from "next-themes"
+
+interface Scenario {
+  title: string;
+  userMessage: string;
+  aiResponse: string;
+  steps: { step: string; explanation: string }[];
+}
 
 const fadeIn = keyframes`
   from { opacity: 0; }
@@ -182,21 +190,26 @@ const ChatCardCarousel = () => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [animationTrigger, setAnimationTrigger] = useState(0);
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true })
 
-  const handleSelect = (selectedIndex: number) => {
-    setActiveIndex(selectedIndex);
-    setAnimationTrigger(prev => prev + 1);
-  };
+  useEffect(() => {
+    if (emblaApi) {
+      emblaApi.on('select', () => {
+        setActiveIndex(emblaApi.selectedScrollSnap());
+        setAnimationTrigger(prev => prev + 1);
+      });
+    }
+  }, [emblaApi]);
 
   return (
     <ChatCardWrapper>
       <Carousel
+        ref={emblaRef}
         opts={{
           align: "start",
           loop: true,
         }}
         className="w-full relative"
-        onSelect={handleSelect}
       >
         <CarouselContent>
           {scenarios.map((scenario, index) => (
@@ -218,7 +231,11 @@ const ChatCardCarousel = () => {
   );
 };
 
-const CarouselChatContent = ({ scenario, isActive, animationTrigger }) => {
+const CarouselChatContent: React.FC<{
+  scenario: Scenario;
+  isActive: boolean;
+  animationTrigger: number;
+}> = ({ scenario, isActive, animationTrigger }) => {
   const [showContent, setShowContent] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
   const [activeStep, setActiveStep] = useState(-1);
@@ -291,7 +308,7 @@ const CarouselChatContent = ({ scenario, isActive, animationTrigger }) => {
                 <>
                   <p className="mt-2 text-sm text-muted-foreground">Showing steps</p>
                   <StepTimeline>
-                    {scenario.steps.map((step, index) => {
+                    {scenario.steps.map((step: { step: string; explanation: string }, index: number) => {
                       const isActive = activeStep >= index;
                       const delay = index * 1000;
                       return (
@@ -435,7 +452,7 @@ export default function LandingPage() {
               <Bolt className="h-12 w-12 text-primary" />
               <h3 className="text-2xl font-bold">Accelerate Innovation</h3>
               <p>
-                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.'s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
+                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.&apos;s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
                 driving innovation at unprecedented speeds.
               </p>
             </div>
@@ -457,8 +474,7 @@ export default function LandingPage() {
                 <CarouselItem>
                   <div className="space-y-4 text-center">
                     <blockquote className="text-xl italic">
-                      "Promethe<span className="text-accent-foreground">iΛ</span>. has revolutionized the way we work. It's like having a supercharged assistant on our
-                      team."
+                      &quot;Promethe<span className="text-accent-foreground">iΛ</span>. has revolutionized the way we work. It&apos;s like having a supercharged assistant on our team.&quot;
                     </blockquote>
                     <div className="text-muted-foreground">- John Doe, CEO at Acme Corp</div>
                   </div>
@@ -466,8 +482,7 @@ export default function LandingPage() {
                 <CarouselItem>
                   <div className="space-y-4 text-center">
                     <blockquote className="text-xl italic">
-                      "With Promethe<span className="font-bold text-accent-foreground">iΛ</span>., we've seen a significant boost in productivity and a dramatic reduction in
-                      manual tasks."
+                      &quot;With Promethe<span className="font-bold text-accent-foreground">iΛ</span>., we&apos;ve seen a significant boost in productivity and a dramatic reduction in manual tasks.&quot;
                     </blockquote>
                     <div className="text-muted-foreground">- Jane Smith, Head of Operations at Globex Inc</div>
                   </div>
@@ -475,8 +490,7 @@ export default function LandingPage() {
                 <CarouselItem>
                   <div className="space-y-4 text-center">
                     <blockquote className="text-xl italic">
-                      "Promethe<span className="font-bold text-accent-foreground">iΛ</span>. has been a game-changer for our team. It's like having a highly intelligent and
-                      tireless co-worker."
+                      &quot;Promethe<span className="font-bold text-accent-foreground">iΛ</span>. has been a game-changer for our team. It&apos;s like having a highly intelligent and tireless co-worker.&quot;
                     </blockquote>
                     <div className="text-muted-foreground">- Michael Johnson, CTO at Technosoft Solutions</div>
                   </div>
