@@ -6,16 +6,13 @@ import json
 import time
 
 from dotenv import load_dotenv
-from flask import (Flask, request, jsonify, session,
-                   send_from_directory, Response, stream_with_context)
+from flask import Flask, request, jsonify, session, send_from_directory, Response, stream_with_context
 from flask_cors import CORS, cross_origin
-from flask_jwt_extended import (JWTManager, jwt_required,
-                                  get_jwt_identity, decode_token)
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity, decode_token
 import jwt
-from flask_migrate import Migrate
 from flask_socketio import SocketIO, emit
-from flask_sqlalchemy import SQLAlchemy
 from langsmith import traceable, trace
+from supabase import create_client, Client
 
 from config import Config
 from llm_interaction import LLMInteraction
@@ -28,7 +25,7 @@ os.environ['LANGCHAIN_API_KEY'] = os.getenv('LANGCHAIN_API_KEY')
 os.environ['LANGCHAIN_PROJECT'] = os.getenv('LANGCHAIN_PROJECT')
 os.environ['LANGCHAIN_TRACING_V2'] = os.getenv('LANGCHAIN_TRACING_V2')
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -42,11 +39,11 @@ CORS(app,
      methods=["GET", "POST", "PUT", "OPTIONS", "DELETE"],
      expose_headers=["Access-Control-Allow-Origin", "Access-Control-Allow-Credentials"])
 app.config.from_object(Config)
-db = SQLAlchemy(app)
-migrate = Migrate(app, db)
 
-# Import models and resources
-from models import User, Agent, Tool, Task, Conversation
+# Initialize Supabase client
+supabase: Client = create_client(Config.SUPABASE_URL, Config.SUPABASE_KEY)
+
+# Import resources
 from resources.agents import agents_bp
 from resources.tools import tools_bp
 from resources.tasks import tasks_bp
@@ -79,11 +76,11 @@ def llm_interaction_route():
     user_id = get_jwt_identity()
     data = request.get_json()
     conversation_history = data['prompt']
-    conversation_id = data['conversation_id']  # Get conversation_id from the request
+    conversation_id = data['conversation_id']
 
-    # Query the database to get the user's name
-    user = User.query.get(user_id)
-    user_name = user.name if user else "Unknown User"
+    # Query Supabase to get the user's name
+    user = supabase.table('user').select('name').eq('id', user_id).execute().data
+    user_name = user[0]['name'] if user else "Unknown User"
 
     # Generate a consistent UUID for the conversation
     conversation_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"conversation:{conversation_id}"))
@@ -99,27 +96,26 @@ def llm_interaction_route():
 
     return jsonify(result), 200
 
-# Add this new route for streaming responses
 @app.route('/llm_stream', methods=['GET', 'POST'])
 @cross_origin(supports_credentials=True)
 def llm_interaction_stream():
     if request.method == 'POST':
         auth_header = request.headers.get('Authorization')
         if not auth_header:
-            return jsonify({"error": "No authorization header"}), 401
+            return Response(stream_error("No authorization header"), 401)
         
         try:
             access_token = auth_header.split(' ')[1]
             decoded_token = decode_token(access_token)
             user_id = decoded_token['sub']
         except jwt.exceptions.PyJWTError as e:
-            return jsonify({"error": f"Invalid token: {str(e)}"}), 401
+            return Response(stream_error(f"Invalid token: {str(e)}"), 401)
 
         data = request.get_json()
         conversation_history = data['prompt']
         conversation_id = int(data['conversation_id'])
 
-        # Store the conversation data in the session or database
+        # Store the conversation data in the session
         session['conversation_data'] = {
             'user_id': user_id,
             'conversation_history': conversation_history,
@@ -131,22 +127,19 @@ def llm_interaction_stream():
     elif request.method == 'GET':
         conversation_id = int(request.args.get('conversation_id'))
         if not conversation_id:
-            return jsonify({"error": "No conversation_id provided"}), 400
+            return Response(stream_error("No conversation_id provided"), 400)
 
         # Retrieve the conversation data
         conversation_data = session.get('conversation_data')
-        print(f"conversation_data = {conversation_data}")
-        print(f"conversation_id from session = {conversation_data['conversation_id']} of type {type(conversation_data['conversation_id'])}")
-        print(f"conversation_id from request = {conversation_id} of type {type(conversation_id)}")
-        if conversation_data['conversation_id'] != conversation_id:
-            return jsonify({f"error": "Invalid or expired conversation. conversation_data = {conversation_data}"}), 400
+        if not conversation_data or conversation_data['conversation_id'] != conversation_id:
+            return Response(stream_error("Invalid or expired conversation"), 400)
 
         user_id = conversation_data['user_id']
         conversation_history = conversation_data['conversation_history']
 
         def generate():
-            user = User.query.get(user_id)
-            user_name = user.name if user else "Unknown User"
+            user = supabase.table('user').select('name').eq('id', user_id).execute().data
+            user_name = user[0]['name'] if user else "Unknown User"
             conversation_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"conversation:{conversation_id}"))
 
             with trace("llm_interaction_stream",
@@ -155,26 +148,27 @@ def llm_interaction_stream():
                        metadata={"conversation_id": conversation_uuid}
                        ) as run:
                 for chunk in llm_interaction.get_response_stream(conversation_history):
-                    print(f"Sending chunk: {chunk}")
                     yield f"data: {json.dumps(chunk)}\n\n"
-                print("Stream ended")
                 yield "data: {\"type\": \"end\"}\n\n"
                 run.end()
 
         return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
     else:
-        return jsonify({"error": "Method not allowed"}), 405
+        return Response(stream_error("Method not allowed"), 405)
 
 def empty_stream():
     while True:
         yield ': keepalive\n\n'
         time.sleep(15)
 
+def stream_error(error_message):
+    yield f"data: {json.dumps({'type': 'error', 'data': error_message})}\n\n"
+    yield "data: {\"type\": \"end\"}\n\n"
+
 # Initialize SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Add this route for handling chat messages
 @socketio.on('send_message')
 def handle_send_message(data):
     message = data['message']
@@ -183,7 +177,7 @@ def handle_send_message(data):
         emit('receive_message', {'error': 'User not authenticated'})
         return
 
-    # Here you would typically save the message to the database and process it
+    # Here you would typically save the message to Supabase and process it
     # For now, we'll just echo the message back
     emit('receive_message', {'message': message, 'sender': 'user'})
     emit('receive_message', {'message': 'AI response', 'sender': 'ai'})
@@ -196,7 +190,6 @@ def serve_react_app(path):
         return send_from_directory(app.static_folder, path)
     else:
         return send_from_directory(app.static_folder, 'index.html')
-
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)

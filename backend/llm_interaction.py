@@ -106,36 +106,43 @@ class LLMInteraction:
         )
 
         reasoning_chain = prompt | self.function_calling_llm
-        
-        # Generate steps non-streaming
-        raw_output = reasoning_chain.invoke({
-            "conversation_history": conversation_history,
-            "combined_input": combined_input
-        })
 
-        # Extract the text content from the raw output
-        if isinstance(raw_output, dict) and 'generations' in raw_output:
-            text_output = raw_output['generations'][0][0].text
-        elif hasattr(raw_output, 'content'):
-            text_output = raw_output.content
-        else:
-            text_output = str(raw_output)
+        try:
+            # Use the retry_parser with the reasoning_chain
+            raw_output = reasoning_chain.invoke({
+                "conversation_history": conversation_history,
+                "combined_input": combined_input
+            })
+            
+            logging.debug(f"Raw output from reasoning chain: {raw_output}")
+            
+            # Ensure raw_output is a string
+            if not isinstance(raw_output, str):
+                if hasattr(raw_output, 'content'):
+                    raw_output = raw_output.content
+                else:
+                    raw_output = str(raw_output)
+            
+            steps_data = retry_parser.parse_with_prompt(raw_output, (prompt
+                                                                     .format_messages(conversation_history=conversation_history,
+                                                                                      combined_input=combined_input)))
+            
+            # Yield steps as a single chunk
+            yield {"type": "steps", "data": [step.dict() for step in steps_data.steps]}
 
-        # Use parse_with_prompt to handle the retry logic
-        steps_data = retry_parser.parse_with_prompt(text_output, prompt)
-
-        # Yield steps as a single chunk
-        yield {"type": "steps", "data": [step.dict() for step in steps_data.steps]}
-
-        message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
-        for chunk in (message_prompt | self.smarter_llm).stream({
-            "DEFAULT_HEADER": PROMPTS['default_header'],
-            "intention": intention,
-            "steps": json.dumps([step.dict() for step in steps_data.steps]),
-            "conversation_history": conversation_history
-        }):
-            if chunk.content:
-                yield {"type": "content", "data": chunk.content}
+            message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
+            for chunk in (message_prompt | self.smarter_llm).stream({
+                "DEFAULT_HEADER": PROMPTS['default_header'],
+                "intention": intention,
+                "steps": json.dumps([step.dict() for step in steps_data.steps]),
+                "conversation_history": conversation_history
+            }):
+                if chunk.content:
+                    yield {"type": "content", "data": chunk.content}
+        except Exception as e:
+            logging.error(f"Error in multi-step reasoning: {str(e)}")
+            logging.exception("Full traceback:")
+            yield {"type": "error", "data": "An error occurred while processing your request. Please try again."}
 
     @traceable(run_type="chain")
     def plan_actions_stream(self, intention, conversation_history, strategy_data):

@@ -172,6 +172,8 @@ Remember:
         These steps should form a natural flow of coherent, well-crafted, and logical thoughts that come from
         first principles and lead clearly to a conclusion.
 
+        Generate the steps in the same language as the user's query. If the user's query is in a language other than English, provide the steps in that language.
+
         Here are some examples of user queries and appropriate responses:
 
         query: How do I code the snake game in python?

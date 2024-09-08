@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, set_access_cookies, set_refresh_cookies, unset_jwt_cookies
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token, unset_jwt_cookies
 from flask_cors import cross_origin
-from models import User
-from app import db
+from werkzeug.security import generate_password_hash, check_password_hash
+from app import supabase
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -15,14 +15,14 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
-    user = User.query.filter_by(email=email).first()
-    if user and user.check_password(password):
-        access_token = create_access_token(identity=user.id)
-        refresh_token = create_refresh_token(identity=user.id)
+    user = supabase.table('user').select('*').eq('email', email).execute().data
+    if user and check_password_hash(user[0]['password_hash'], password):
+        access_token = create_access_token(identity=user[0]['id'])
+        refresh_token = create_refresh_token(identity=user[0]['id'])
         
         return jsonify({
             'success': True,
-            'user': {'id': user.id, 'email': user.email},
+            'user': {'id': user[0]['id'], 'email': user[0]['email']},
             'access_token': access_token,
             'refresh_token': refresh_token
         }), 200
@@ -37,17 +37,19 @@ def register():
     data = request.get_json()
     email = data.get('email')
     password = data.get('password')
-    name = data.get('name')  # Add this line
+    name = data.get('name')
 
-    if User.query.filter_by(email=email).first():
+    existing_user = supabase.table('user').select('*').eq('email', email).execute().data
+    if existing_user:
         return jsonify({'success': False, 'message': 'User already exists'}), 400
 
-    user = User(email=email, name=name)  # Add name here
-    user.set_password(password)
-    db.session.add(user)
-    db.session.commit()
-
-    return jsonify({'success': True, 'message': 'User created successfully'}), 201
+    password_hash = generate_password_hash(password)
+    new_user = supabase.table('user').insert({'email': email, 'password_hash': password_hash, 'name': name}).execute()
+    
+    if new_user.data:
+        return jsonify({'success': True, 'message': 'User created successfully'}), 201
+    else:
+        return jsonify({'success': False, 'message': 'Failed to create user'}), 500
 
 @auth_bp.route('/logout', methods=['POST', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
@@ -88,15 +90,13 @@ def update_name():
     new_name = data.get('name')
     
     current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
     
-    if not user:
-        return jsonify({'success': False, 'message': 'User not found'}), 404
+    updated_user = supabase.table('user').update({'name': new_name}).eq('id', current_user_id).execute()
     
-    user.name = new_name
-    db.session.commit()
-    
-    return jsonify({'success': True, 'message': 'Name updated successfully'}), 200
+    if updated_user.data:
+        return jsonify({'success': True, 'message': 'Name updated successfully'}), 200
+    else:
+        return jsonify({'success': False, 'message': 'Failed to update name'}), 500
 
 @auth_bp.route('/user/<int:user_id>', methods=['GET', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
@@ -104,7 +104,7 @@ def update_name():
 def get_user(user_id):
     if request.method == 'OPTIONS':
         return '', 200
-    user = User.query.get(user_id)
+    user = supabase.table('user').select('id', 'email', 'name').eq('id', user_id).execute().data
     if not user:
         return jsonify({'success': False, 'message': 'User not found'}), 404
-    return jsonify({'success': True, 'user': {'id': user.id, 'email': user.email, 'name': user.name}}), 200
+    return jsonify({'success': True, 'user': user[0]}), 200

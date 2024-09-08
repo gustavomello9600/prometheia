@@ -11,6 +11,7 @@ import { Send, Mic, Image as ImageIcon, ArrowLeft, Menu, ChevronDown, ChevronUp 
 import { createMessage, getMessages, getLLMResponseStream, updateConversationTitle } from '@/lib/api';
 import ReactMarkdown, { Components } from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from "@/hooks/use-toast";
 
 interface Step {
   step: string;
@@ -190,6 +191,7 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [initialRevealComplete, setInitialRevealComplete] = useState<{ [key: string]: boolean }>({});
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
+  const { toast } = useToast();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -250,11 +252,11 @@ export default function ChatInterface({ conversation, setConversation, updateCon
     setInput('');
     setIsWaitingForResponse(true);
   
-    let accumulatedContent = ''; // Local variable for accumulating content
+    let accumulatedContent = '';
     const aiMessage: Message = { id: (Date.now() + 1).toString(), type: 'ai', content: '', steps: [] };
   
     try {
-      await createMessage(conversation.id, userMessage); // Save the user message
+      await createMessage(conversation.id, userMessage);
   
       setMessages(prevMessages => [...prevMessages, aiMessage]);
   
@@ -264,11 +266,10 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
       const streamHandler = await getLLMResponseStream(conversationHistory, conversation.id);
   
-      // Create a promise that resolves when the stream ends
-      await new Promise<void>((resolve) => {
+      await new Promise<void>((resolve, reject) => {
         streamHandler((chunk) => {
           if (chunk.type === 'content') {
-            accumulatedContent += chunk.data; // Accumulate the content
+            accumulatedContent += chunk.data;
             
             setMessages(prevMessages => {
               const updatedMessages = [...prevMessages];
@@ -291,15 +292,19 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
           } else if (chunk.type === 'error') {
             console.error('Error from server:', chunk.data);
-            throw new Error('Stream encountered an error.');
+            toast({
+              title: "Error",
+              description: chunk.data,
+              variant: "destructive",
+            });
+            reject(new Error(chunk.data));
           } else if (chunk.type === 'end') {
-            resolve(); // Resolve the promise when the stream ends
+            resolve();
             console.log('Stream ended.');
           }
         });
       });
   
-      // Save the complete AI message after stream completion
       await createMessage(conversation.id, {
         ...aiMessage,
         content: accumulatedContent,
@@ -308,6 +313,11 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
+      toast({
+        title: "Error",
+        description: "An error occurred while processing your message. Please try again.",
+        variant: "destructive",
+      });
   
     } finally {
       setIsWaitingForResponse(false);

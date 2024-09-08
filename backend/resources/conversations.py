@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
-from app import db
-from models import Conversation, Message
-from datetime import datetime
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from flask_cors import cross_origin
+from app import supabase
+from datetime import datetime
+from postgrest.exceptions import APIError
 
 conversations_bp = Blueprint('conversations', __name__)
 
@@ -14,12 +14,12 @@ def get_conversations():
     if request.method == 'OPTIONS':
         return '', 200
     user_id = get_jwt_identity()
-    conversations = Conversation.query.filter_by(user_id=user_id).all()
+    conversations = supabase.table('conversation').select('*').eq('user_id', user_id).execute()
     return jsonify([{
-        'id': conv.id,
-        'title': conv.title,
-        'date': conv.date.isoformat()
-    } for conv in conversations]), 200
+        'id': conv['id'],
+        'title': conv['title'],
+        'date': conv['date']
+    } for conv in conversations.data]), 200
 
 @conversations_bp.route('/', methods=['POST', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
@@ -31,16 +31,18 @@ def create_conversation():
     user_id = get_jwt_identity()
     data = request.get_json()
     title = data.get('title')
-    date = datetime.now()
+    date = datetime.now().isoformat()
 
-    new_conversation = Conversation(user_id=user_id, title=title, date=date)
-    db.session.add(new_conversation)
-    db.session.commit()
+    new_conversation = supabase.table('conversation').insert({
+        'user_id': user_id,
+        'title': title,
+        'date': date
+    }).execute()
 
     return jsonify({
-        'id': new_conversation.id,
-        'title': new_conversation.title,
-        'date': new_conversation.date.isoformat()
+        'id': new_conversation.data[0]['id'],
+        'title': new_conversation.data[0]['title'],
+        'date': new_conversation.data[0]['date']
     }), 201
 
 @conversations_bp.route('/<int:conversation_id>/messages', methods=['GET', 'OPTIONS'])
@@ -48,46 +50,63 @@ def create_conversation():
 @jwt_required()
 def get_messages(conversation_id):
     user_id = get_jwt_identity()
-    conversation = Conversation.query.get_or_404(conversation_id)
-    if conversation.user_id != user_id:
+    conversation = supabase.table('conversation').select('*').eq('id', conversation_id).execute()
+    if not conversation.data:
+        return jsonify({'message': 'Conversation not found'}), 404
+    if conversation.data[0]['user_id'] != user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 
-    messages = Message.query.filter_by(conversation_id=conversation_id).order_by(Message.timestamp).all()
+    messages = supabase.table('message').select('*').eq('conversation_id', conversation_id).order('timestamp').execute()
     return jsonify([{
-        'id': msg.id,
-        'type': msg.type,
-        'content': msg.content,
-        'timestamp': msg.timestamp.isoformat(),
-        'steps': msg.steps  # Add this line
-    } for msg in messages]), 200
+        'id': msg['id'],
+        'type': msg['type'],
+        'content': msg['content'],
+        'timestamp': msg['timestamp'],
+        'steps': msg['steps']
+    } for msg in messages.data]), 200
 
 @conversations_bp.route('/<int:conversation_id>/messages', methods=['POST', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
 @jwt_required()
 def add_message(conversation_id):
     user_id = get_jwt_identity()
-    conversation = Conversation.query.get_or_404(conversation_id)
-    if conversation.user_id != user_id:
+    conversation = supabase.table('conversation').select('*').eq('id', conversation_id).execute()
+    if not conversation.data:
+        return jsonify({'message': 'Conversation not found'}), 404
+    if conversation.data[0]['user_id'] != user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 
     data = request.get_json()
-    new_message = Message(
-        conversation_id=conversation_id,
-        type=data['type'],
-        content=data['content'],
-        timestamp=datetime.now(),
-        steps=data.get('steps')  # Add this line
-    )
-    db.session.add(new_message)
-    db.session.commit()
 
-    return jsonify({
-        'id': new_message.id,
-        'type': new_message.type,
-        'content': new_message.content,
-        'timestamp': new_message.timestamp.isoformat(),
-        'steps': new_message.steps  # Add this line
-    }), 201
+    try:
+        # Fetch the current maximum ID
+        max_id_result = supabase.table('message').select('id').order('id', desc=True).limit(1).execute()
+        next_id = 1 if not max_id_result.data else max_id_result.data[0]['id'] + 1
+
+        new_message = {
+            'id': next_id,  # Explicitly set the next ID
+            'conversation_id': conversation_id,
+            'type': data['type'],
+            'content': data['content'],
+            'timestamp': datetime.now().isoformat(),
+            'steps': data.get('steps')
+        }
+
+        # Insert the new message with the explicit ID
+        result = supabase.table('message').insert(new_message).execute()
+        inserted_message = result.data[0]
+
+        return jsonify({
+            'id': inserted_message['id'],
+            'type': inserted_message['type'],
+            'content': inserted_message['content'],
+            'timestamp': inserted_message['timestamp'],
+            'steps': inserted_message['steps']
+        }), 201
+
+    except APIError as e:
+        print(f"Error inserting message: {str(e)}")
+        return jsonify({'message': 'Failed to insert message'}), 500
 
 @conversations_bp.route('/<int:conversation_id>/title', methods=['PUT', 'OPTIONS'])
 @cross_origin(supports_credentials=True)
@@ -97,8 +116,10 @@ def update_conversation_title(conversation_id):
         return '', 200
 
     user_id = get_jwt_identity()
-    conversation = Conversation.query.get_or_404(conversation_id)
-    if conversation.user_id != user_id:
+    conversation = supabase.table('conversation').select('*').eq('id', conversation_id).execute()
+    if not conversation.data:
+        return jsonify({'message': 'Conversation not found'}), 404
+    if conversation.data[0]['user_id'] != user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 
     data = request.get_json()
@@ -106,13 +127,13 @@ def update_conversation_title(conversation_id):
     if not new_title:
         return jsonify({'message': 'Title is required'}), 400
 
-    conversation.title = new_title
-    db.session.commit()
+    updated_conversation = supabase.table('conversation').update({'title': new_title}).eq('id', conversation_id).execute()
+    updated_data = updated_conversation.data[0]
 
     return jsonify({
-        'id': conversation.id,
-        'title': conversation.title,
-        'date': conversation.date.isoformat()
+        'id': updated_data['id'],
+        'title': updated_data['title'],
+        'date': updated_data['date']
     }), 200
 
 @conversations_bp.route('/<int:conversation_id>', methods=['DELETE', 'OPTIONS'])
@@ -123,15 +144,16 @@ def delete_conversation(conversation_id):
         return '', 200
 
     user_id = get_jwt_identity()
-    conversation = Conversation.query.get_or_404(conversation_id)
-    if conversation.user_id != user_id:
+    conversation = supabase.table('conversation').select('*').eq('id', conversation_id).execute()
+    if not conversation.data:
+        return jsonify({'message': 'Conversation not found'}), 404
+    if conversation.data[0]['user_id'] != user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 
     # Delete associated messages first
-    Message.query.filter_by(conversation_id=conversation_id).delete()
+    supabase.table('message').delete().eq('conversation_id', conversation_id).execute()
 
     # Now delete the conversation
-    db.session.delete(conversation)
-    db.session.commit()
+    supabase.table('conversation').delete().eq('id', conversation_id).execute()
 
     return jsonify({'message': 'Conversation deleted successfully'}), 200
