@@ -10,9 +10,15 @@ from langchain.schema import LLMResult
 from requests.exceptions import RequestException
 from langchain_groq.chat_models import ChatGroq
 from groq import InternalServerError as GroqInternalServerError
+from dotenv import load_dotenv
+from pathlib import Path
 
 
-GROQ_API_KEY = "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"
+env_path = Path(__file__).parent / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 
 class RetryCallbackHandler(BaseCallbackHandler):
