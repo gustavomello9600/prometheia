@@ -15,7 +15,7 @@ declare module 'next-auth' {
   }
 }
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = '/api';
 
 // Remove this function
 // async function updateSession(newData: { access_token: string }) { ... }
