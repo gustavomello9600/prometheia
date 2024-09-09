@@ -1,7 +1,7 @@
 {
     "functions": {
         "api/**": {
-          "use": "@vercel/python",
+          "runtime": "python3.12",
           "excludeFiles": "{.next,*.cache,node_modules,public,app}/**"
         }
       }
