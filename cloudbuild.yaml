@@ -11,5 +11,4 @@ images:
   - 'gcr.io/$PROJECT_ID/backend'
 
 options:
-  logging:
-    cloudLoggingOnly: 'true'
+  logging: CLOUD_LOGGING_ONLY
