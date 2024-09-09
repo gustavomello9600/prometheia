@@ -41,3 +41,5 @@
 # pycharm
 .idea
 
+# local environment
+/api/.env

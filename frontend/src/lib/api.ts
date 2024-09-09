@@ -15,7 +15,7 @@ declare module 'next-auth' {
   }
 }
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // Remove this function
 // async function updateSession(newData: { access_token: string }) { ... }
