@@ -257,73 +257,64 @@ export const getLLMResponseStream = async (conversationHistory: string, conversa
     throw new Error('No access token available');
   }
 
-  const baseUrl = new URL('/llm_stream', api.defaults.baseURL);
+  const baseUrl = new URL('/llm_stream', API_BASE_URL);
 
-  // First, send the POST request to initialize the conversation
   try {
-    const response = await api.post(baseUrl.toString(), {
-      prompt: conversationHistory,
-      conversation_id: conversationId
+    const response = await fetch(baseUrl.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        prompt: conversationHistory,
+        conversation_id: conversationId
+      }),
     });
 
-    if (response.status !== 200) {
+    if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const result = response.data;
-    console.log('POST response:', result);
+    if (!response.body) {
+      throw new Error('ReadableStream not supported');
+    }
 
-    // If the POST request is successful, set up the EventSource
-    return new Promise<(onChunk: (chunk: any) => void) => void>((resolve, reject) => {
-      const eventSource = new EventSource(`${baseUrl.toString()}?conversation_id=${conversationId}`, {
-        withCredentials: true
-      });
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
 
-      console.log('EventSource created');
+    return (onChunk: (chunk: any) => void) => {
+      function read() {
+        reader.read().then(({ done, value }: { done: boolean; value?: Uint8Array }) => {
+          if (done) {
+            onChunk({ type: 'end' });
+            return;
+          }
 
-      let retryCount = 0;
-      const maxRetries = 3;
-
-      eventSource.onopen = () => {
-        console.log('EventSource connection opened');
-        retryCount = 0;
-        resolve((onChunk) => {
-          eventSource.onmessage = (event) => {
-            console.log('Received message in api.ts:', event.data);
-            try {
-              const data = JSON.parse(event.data);
-              if (data.type === 'end') {
-                console.log('Stream ended');
-                eventSource.close();
-                onChunk(data); // Send the 'end' event to the handler
-              } else {
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split('\n\n');
+          lines.forEach(line => {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
                 onChunk(data);
+              } catch (error) {
+                console.error('Error parsing SSE data:', error);
+                onChunk({ type: 'error', data: 'Error parsing server data' });
               }
-            } catch (error) {
-              console.error('Error parsing SSE data:', error);
-              onChunk({ type: 'error', data: 'Error parsing server data' });
             }
-          };
+          });
 
-          // Return a function to close the EventSource
-          return () => {
-            eventSource.close();
-          };
+          read();
         });
-      };
+      }
 
-      eventSource.onerror = (error) => {
-        console.error('EventSource error:', error);
-        if (retryCount < maxRetries) {
-          retryCount++;
-          console.log(`Retrying connection (${retryCount}/${maxRetries})...`);
-        } else {
-          console.error('Max retries reached. Closing EventSource.');
-          eventSource.close();
-          reject(new Error('EventSource connection failed after max retries'));
-        }
+      read();
+
+      return () => {
+        reader.cancel();
       };
-    });
+    };
 
   } catch (error) {
     console.error('Error in getLLMResponseStream:', error);

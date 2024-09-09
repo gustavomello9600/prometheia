@@ -95,66 +95,31 @@ def llm_interaction_route():
 
     return jsonify(result), 200
 
-@app.route('/llm_stream', methods=['GET', 'POST'])
+@app.route('/llm_stream', methods=['POST'])
 @cross_origin(supports_credentials=True)
+@jwt_required()
 def llm_interaction_stream():
-    if request.method == 'POST':
-        auth_header = request.headers.get('Authorization')
-        if not auth_header:
-            return Response(stream_error("No authorization header"), 401)
-        
-        try:
-            access_token = auth_header.split(' ')[1]
-            decoded_token = decode_token(access_token)
-            user_id = decoded_token['sub']
-        except jwt.exceptions.PyJWTError as e:
-            return Response(stream_error(f"Invalid token: {str(e)}"), 401)
+    user_id = get_jwt_identity()
+    data = request.get_json()
+    conversation_history = data['prompt']
+    conversation_id = int(data['conversation_id'])
 
-        data = request.get_json()
-        conversation_history = data['prompt']
-        conversation_id = int(data['conversation_id'])
+    user = supabase.table('user').select('name').eq('id', user_id).execute().data
+    user_name = user[0]['name'] if user else "Unknown User"
+    conversation_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"conversation:{conversation_id}"))
 
-        # Store the conversation data in the session
-        session['conversation_data'] = {
-            'user_id': user_id,
-            'conversation_history': conversation_history,
-            'conversation_id': conversation_id
-        }
+    def generate():
+        with trace("llm_interaction_stream",
+                   run_type="chain",
+                   tags=[str(user_id), user_name],
+                   metadata={"conversation_id": conversation_uuid}
+                   ) as run:
+            for chunk in llm_interaction.get_response_stream(conversation_history):
+                yield f"data: {json.dumps(chunk)}\n\n"
+            yield "data: {\"type\": \"end\"}\n\n"
+            run.end()
 
-        return jsonify({"message": "Conversation initialized", "conversation_id": conversation_id}), 200
-
-    elif request.method == 'GET':
-        conversation_id = int(request.args.get('conversation_id'))
-        if not conversation_id:
-            return Response(stream_error("No conversation_id provided"), 400)
-
-        # Retrieve the conversation data
-        conversation_data = session.get('conversation_data')
-        if not conversation_data or conversation_data['conversation_id'] != conversation_id:
-            return Response(stream_error("Invalid or expired conversation"), 400)
-
-        user_id = conversation_data['user_id']
-        conversation_history = conversation_data['conversation_history']
-
-        def generate():
-            user = supabase.table('user').select('name').eq('id', user_id).execute().data
-            user_name = user[0]['name'] if user else "Unknown User"
-            conversation_uuid = str(uuid.uuid5(uuid.NAMESPACE_URL, f"conversation:{conversation_id}"))
-
-            with trace("llm_interaction_stream",
-                       run_type="chain",
-                       tags=[str(user_id), user_name],
-                       metadata={"conversation_id": conversation_uuid}
-                       ) as run:
-                for chunk in llm_interaction.get_response_stream(conversation_history):
-                    yield f"data: {json.dumps(chunk)}\n\n"
-                yield "data: {\"type\": \"end\"}\n\n"
-                run.end()
-
-        return Response(stream_with_context(generate()), mimetype='text/event-stream')
-
-    else:
-        return Response(stream_error("Method not allowed"), 405)
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 def empty_stream():
     while True:

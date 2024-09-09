@@ -266,43 +266,40 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
       const streamHandler = await getLLMResponseStream(conversationHistory, conversation.id);
   
-      await new Promise<void>((resolve, reject) => {
-        streamHandler((chunk) => {
-          if (chunk.type === 'content') {
-            accumulatedContent += chunk.data;
-            
-            setMessages(prevMessages => {
-              const updatedMessages = [...prevMessages];
-              const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
-              if (aiMessageIndex !== -1) {
-                updatedMessages[aiMessageIndex].content = accumulatedContent;
-              }
-              return updatedMessages;
-            });
+      const closeStream = streamHandler((chunk) => {
+        if (chunk.type === 'content') {
+          accumulatedContent += chunk.data;
+          
+          setMessages(prevMessages => {
+            const updatedMessages = [...prevMessages];
+            const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+            if (aiMessageIndex !== -1) {
+              updatedMessages[aiMessageIndex].content = accumulatedContent;
+            }
+            return updatedMessages;
+          });
   
-          } else if (chunk.type === 'steps') {
-            setMessages(prevMessages => {
-              const updatedMessages = [...prevMessages];
-              const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
-              if (aiMessageIndex !== -1) {
-                updatedMessages[aiMessageIndex].steps = chunk.data;
-              }
-              return updatedMessages;
-            });
+        } else if (chunk.type === 'steps') {
+          setMessages(prevMessages => {
+            const updatedMessages = [...prevMessages];
+            const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+            if (aiMessageIndex !== -1) {
+              updatedMessages[aiMessageIndex].steps = chunk.data;
+            }
+            return updatedMessages;
+          });
   
-          } else if (chunk.type === 'error') {
-            console.error('Error from server:', chunk.data);
-            toast({
-              title: "Error",
-              description: chunk.data,
-              variant: "destructive",
-            });
-            reject(new Error(chunk.data));
-          } else if (chunk.type === 'end') {
-            resolve();
-            console.log('Stream ended.');
-          }
-        });
+        } else if (chunk.type === 'error') {
+          console.error('Error from server:', chunk.data);
+          toast({
+            title: "Error",
+            description: chunk.data,
+            variant: "destructive",
+          });
+        } else if (chunk.type === 'end') {
+          console.log('Stream ended.');
+          closeStream();
+        }
       });
   
       await createMessage(conversation.id, {
