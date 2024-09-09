@@ -21,35 +21,12 @@ if env_path.exists():
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 
-class RetryCallbackHandler(BaseCallbackHandler):
-    def __init__(self, max_retries=5, retry_delay=1):
-        self.max_retries = max_retries
-        self.retry_delay_initial = retry_delay
-        self.retry_delay = retry_delay
-        self.current_retry = 0
-
-    def on_llm_error(self, error: Exception, **kwargs) -> None:
-        if isinstance(error, (RequestException, GroqInternalServerError)) and self.current_retry < self.max_retries:
-            self.current_retry += 1
-            logging.warning(f"API error (attempt {self.current_retry}/{self.max_retries}): {str(error)}. Retrying in {self.retry_delay} seconds...")
-            time.sleep(self.retry_delay)
-            self.retry_delay *= 2  # Exponential backoff
-        else:
-            logging.error(f"Error after {self.current_retry} attempts: {str(error)}")
-            raise error
-
-    def on_llm_end(self, response: LLMResult, **kwargs) -> None:
-        self.current_retry = 0
-        self.retry_delay = self.retry_delay_initial
-
-
 class QuickLLM(ChatGroq):
     def __init__(self):
         super().__init__(
             groq_api_key=GROQ_API_KEY,
             model="llama-3.1-8b-instant",
-            temperature=0.2,
-            callbacks=[RetryCallbackHandler()]
+            temperature=0.2
         )
 
 class SmarterLLM(ChatGroq):
@@ -57,8 +34,7 @@ class SmarterLLM(ChatGroq):
         super().__init__(
             groq_api_key=GROQ_API_KEY,
             model="llama-3.1-70b-versatile",
-            temperature=0.2,
-            callbacks=[RetryCallbackHandler()]
+            temperature=0.2
         )
 
 class FunctionCallingLLM(ChatGroq):
@@ -67,6 +43,5 @@ class FunctionCallingLLM(ChatGroq):
         super().__init__(
             groq_api_key=GROQ_API_KEY,
             model="llama3-groq-70b-8192-tool-use-preview",
-            temperature=0.2,
-            callbacks=[RetryCallbackHandler()]
+            temperature=0.2
         )

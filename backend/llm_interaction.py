@@ -5,17 +5,23 @@ from typing import Dict, List, Any, Generator
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
-from langchain_groq import ChatGroq
+from groq import InternalServerError as GroqInternalServerError
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import RetryOutputParser
 from langchain_core.output_parsers import JsonOutputParser 
 from langchain_core.output_parsers import StrOutputParser
 from langsmith import traceable, trace
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 from prompts import PROMPTS
 from llm_models import QuickLLM, SmarterLLM, FunctionCallingLLM
 
-DEBUG = False
+
+groq_retry = retry(
+    retry=retry_if_exception_type(GroqInternalServerError),
+    wait=wait_exponential(multiplier=2, min=4, max=10),
+    stop=stop_after_attempt(3)
+)
 
 
 def setup_logging():
@@ -85,6 +91,7 @@ class LLMInteraction:
             yield from self.multi_step_reasoning_stream(intention, conversation_history, combined_input)
 
     @traceable(run_type="chain")
+    @groq_retry
     def standard_response_stream(self, intention, conversation_history):
         logging.info("Generating standard response stream")
         prompt = ChatPromptTemplate.from_messages(PROMPTS['standard_response'])
@@ -95,6 +102,7 @@ class LLMInteraction:
                 yield {"type": "content", "data": chunk.content}
 
     @traceable(run_type="chain")
+    @groq_retry
     def multi_step_reasoning_stream(self, intention, conversation_history, combined_input):
         logging.info("Performing multi-step reasoning stream")
         prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning'])
@@ -145,18 +153,21 @@ class LLMInteraction:
             yield {"type": "error", "data": "An error occurred while processing your request. Please try again."}
 
     @traceable(run_type="chain")
+    @groq_retry
     def plan_actions_stream(self, intention, conversation_history, strategy_data):
         logging.info("Planning actions stream")
         # Implement streaming for plan_actions
         yield {"type": "content", "data": "Plan Actions Strategy not fully implemented for streaming."}
 
     @traceable(run_type="chain")
+    @groq_retry
     def multi_agent_workflow_stream(self, intention, conversation_history, strategy_data):
         logging.info("Executing multi-agent workflow stream")
         # Implement streaming for multi_agent_workflow
         yield {"type": "content", "data": "Multi-Agent Workflow Strategy not fully implemented for streaming."}
 
     @traceable(run_type="chain")
+    @groq_retry
     def digest_conversation_history(self, conversation_history):
         logging.info("Digesting conversation history")
         prompt = ChatPromptTemplate.from_messages(PROMPTS['digest_conversation'])
@@ -166,6 +177,7 @@ class LLMInteraction:
         return relevant_points
 
     @traceable(run_type="chain")
+    @groq_retry
     def infer_user_intention(self, combined_input):
         logging.info("Inferring user intention")
         prompt = ChatPromptTemplate.from_messages(PROMPTS['infer_intention'])
@@ -177,6 +189,7 @@ class LLMInteraction:
         return intention
 
     @traceable(run_type="chain")
+    @groq_retry
     def select_strategy(self, intention, combined_input):
         logging.info("Selecting strategy")
         prompt = ChatPromptTemplate.from_messages(PROMPTS['select_strategy'])

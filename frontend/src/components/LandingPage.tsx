@@ -152,6 +152,8 @@ const StyledCarouselNext = styled(CarouselNext)`
 const ChatCardWrapper = styled.div`
   position: relative;
   width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 `;
 
 const ChatCardCarousel = () => {
@@ -190,7 +192,7 @@ const ChatCardCarousel = () => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [animationTrigger, setAnimationTrigger] = useState(0);
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true })
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' })
 
   useEffect(() => {
     if (emblaApi) {
@@ -213,7 +215,7 @@ const ChatCardCarousel = () => {
       >
         <CarouselContent>
           {scenarios.map((scenario, index) => (
-            <CarouselItem key={index}>
+            <CarouselItem key={index} className="w-full">
               <Card className="w-full bg-background text-foreground overflow-hidden">
                 <CarouselChatContent 
                   scenario={scenario} 
@@ -386,7 +388,7 @@ export default function LandingPage() {
 
       <main>
         <section className="py-24 px-6">
-          <div className="container mx-auto">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12 min-h-[600px]">
               <div className="w-full lg:w-1/2 space-y-4 flex flex-col justify-center">
                 <h1 className="text-4xl font-bold">Promethe<span className="text-accent-foreground">iΛ</span>: Where Intelligence Meets Action</h1>
@@ -397,7 +399,7 @@ export default function LandingPage() {
                   <Button>Get Started</Button>
                 </Link>
               </div>
-              <div className="w-full lg:w-1/2 flex items-center">
+              <div className="w-full lg:w-1/2 flex items-center overflow-hidden">
                 <ChatCardCarousel />
               </div>
             </div>
