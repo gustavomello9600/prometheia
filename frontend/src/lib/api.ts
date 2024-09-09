@@ -229,7 +229,7 @@ export const createMessage = async (conversationId: number, message: Message) =>
     const response = await api.post(`/api/conversations/${conversationId}/messages`, {
       type: message.type,
       content: message.content,
-      steps: message.steps  // Add this line
+      steps: message.steps
     });
     return response.data;
   } catch (error) {
@@ -306,6 +306,10 @@ export const getLLMResponseStream = async (conversationHistory: string, conversa
           });
 
           read();
+
+          return () => {
+            reader.cancel();
+          };
         });
       }
 

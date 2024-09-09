@@ -266,7 +266,11 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
       const streamHandler = await getLLMResponseStream(conversationHistory, conversation.id);
   
+      let isStreamClosed = false;
+  
       const closeStream = streamHandler((chunk) => {
+        if (isStreamClosed) return;
+  
         if (chunk.type === 'content') {
           accumulatedContent += chunk.data;
           
@@ -297,17 +301,15 @@ export default function ChatInterface({ conversation, setConversation, updateCon
             variant: "destructive",
           });
         } else if (chunk.type === 'end') {
-          console.log('Stream ended.');
-          closeStream();
+          if (!isStreamClosed) {
+            console.log('Stream ended.');
+            isStreamClosed = true;
+            // Save the AI message to the database after the stream ends
+            saveAIMessage(aiMessage.id, accumulatedContent, aiMessage.steps);
+          }
         }
       });
-  
-      await createMessage(conversation.id, {
-        ...aiMessage,
-        content: accumulatedContent,
-      });
-      console.log('AI message saved successfully.');
-  
+
     } catch (error) {
       console.error('Error in handleSendMessage:', error);
       toast({
@@ -318,6 +320,30 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
     } finally {
       setIsWaitingForResponse(false);
+    }
+  };
+
+  // Updated function to save the AI message
+  const saveAIMessage = async (id: string, content: string, steps: { step: string; explanation: string }[] | undefined) => {
+    if (!conversation) return;
+
+    try {
+      const aiMessageToSave: Message = {
+        id: id,
+        type: 'ai',
+        content: content,
+        steps: steps
+      };
+
+      await createMessage(conversation.id, aiMessageToSave);
+      console.log('AI message saved successfully.');
+    } catch (error) {
+      console.error('Error saving AI message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save the AI response. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
