@@ -247,17 +247,13 @@ const CarouselChatContent: React.FC<{
     setActiveStep(-1);
     setExpandedExplanations({});
 
-    const initialDelay = setTimeout(() => {
-      const contentTimer = setTimeout(() => setShowContent(true), 100);
-      const stepsTimer = setTimeout(() => setShowSteps(true), 1000);
+    const contentTimer = setTimeout(() => setShowContent(true), 100);
+    const stepsTimer = setTimeout(() => setShowSteps(true), 1000);
 
-      return () => {
-        clearTimeout(contentTimer);
-        clearTimeout(stepsTimer);
-      };
-    }, 5000);
-
-    return () => clearTimeout(initialDelay);
+    return () => {
+      clearTimeout(contentTimer);
+      clearTimeout(stepsTimer);
+    };
   }, [animationTrigger]);
 
   useEffect(() => {
@@ -354,16 +350,12 @@ export default function LandingPage() {
   const benefitsRef = useRef<HTMLElement>(null)
   const testimonialsRef = useRef<HTMLElement>(null)
   const ctaRef = useRef<HTMLElement>(null)
-  const [initialDelayPassed, setInitialDelayPassed] = useState(false)
+  const [initialDelayPassed, setInitialDelayPassed] = useState(true)
 
   useEffect(() => {
     setTheme('light')
-    const timer = setTimeout(() => {
-      setInitialDelayPassed(true)
-    }, 5000)
 
     return () => {
-      clearTimeout(timer)
       setTheme('system')
     }
   }, [setTheme])
@@ -406,7 +398,7 @@ export default function LandingPage() {
                 </Link>
               </div>
               <div className="w-full lg:w-1/2 flex items-center">
-                {initialDelayPassed && <ChatCardCarousel />}
+                <ChatCardCarousel />
               </div>
             </div>
           </div>

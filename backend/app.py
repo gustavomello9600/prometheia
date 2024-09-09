@@ -14,11 +14,10 @@ from flask_socketio import SocketIO, emit
 from langsmith import traceable, trace
 from supabase import create_client, Client
 
+load_dotenv()
+
 from config import Config
 from llm_interaction import LLMInteraction
-
-# Load environment variables from .env file
-load_dotenv()
 
 # Set environment variables
 os.environ['LANGCHAIN_API_KEY'] = os.getenv('LANGCHAIN_API_KEY')
