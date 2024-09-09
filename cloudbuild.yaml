@@ -12,4 +12,4 @@ images:
 
 options:
   logging:
-    cloudLoggingOnly: true
+    cloudLoggingOnly: 'true'
