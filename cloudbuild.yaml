@@ -9,3 +9,7 @@ steps:
 
 images:
   - 'gcr.io/$PROJECT_ID/backend'
+
+options:
+  logging:
+    cloudLoggingOnly: true
