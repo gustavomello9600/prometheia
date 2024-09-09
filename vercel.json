@@ -1,7 +1,1 @@
-{
-    "functions": {
-        "api/index.py": {
-          "excludeFiles": "{.next,*.cache,node_modules,public,app}/**"
-        }
-      }
-  }
+ 
