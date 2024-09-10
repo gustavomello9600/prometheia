@@ -4,7 +4,6 @@ import React, { useRef, useState, useEffect } from 'react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel"
-import useEmblaCarousel from 'embla-carousel-react'
 import { Clipboard, Lightbulb, Users, Rocket, Brush, Bolt, Briefcase, ChevronDown, ChevronUp } from 'lucide-react'
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
@@ -122,6 +121,7 @@ const StepExplanation = styled.p`
 `;
 
 const ARROW_SIZE = '30px';
+const CARD_PADDING = `calc(${ARROW_SIZE} / 2)`;
 
 const ChatCardWrapper = styled.div`
   position: relative;
@@ -130,19 +130,9 @@ const ChatCardWrapper = styled.div`
   padding: 0 ${ARROW_SIZE};
 `;
 
-const StyledCarousel = styled(Carousel)`
-  .embla__viewport {
-    overflow: visible;
-  }
-`;
-
-const StyledCarouselContent = styled(CarouselContent)`
-  margin: 0;
-  padding: 0;
-`;
-
-const StyledCarouselItem = styled(CarouselItem)`
-  padding: 0;
+const StyledCard = styled(Card)`
+  padding-left: ${CARD_PADDING};
+  padding-right: ${CARD_PADDING};
 `;
 
 const StyledCarouselPrevious = styled(CarouselPrevious)`
@@ -211,44 +201,36 @@ const ChatCardCarousel = () => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [animationTrigger, setAnimationTrigger] = useState(0);
-  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true, align: 'center', containScroll: 'trimSnaps' })
-
-  useEffect(() => {
-    if (emblaApi) {
-      emblaApi.on('select', () => {
-        setActiveIndex(emblaApi.selectedScrollSnap());
-        setAnimationTrigger(prev => prev + 1);
-      });
-    }
-  }, [emblaApi]);
 
   return (
     <ChatCardWrapper>
-      <StyledCarousel
-        ref={emblaRef}
+      <Carousel
         opts={{
           align: "center",
           loop: true,
-          containScroll: 'trimSnaps'
         }}
         className="w-full relative"
+        onSelect={(api) => {
+          setActiveIndex(api.selectedScrollSnap());
+          setAnimationTrigger(prev => prev + 1);
+        }}
       >
-        <StyledCarouselContent>
+        <CarouselContent>
           {scenarios.map((scenario, index) => (
-            <StyledCarouselItem key={index}>
-              <Card className="w-full bg-background text-foreground overflow-hidden">
+            <CarouselItem key={index}>
+              <StyledCard className="w-full bg-background text-foreground overflow-hidden">
                 <CarouselChatContent 
                   scenario={scenario} 
                   isActive={index === activeIndex}
                   animationTrigger={animationTrigger}
                 />
-              </Card>
-            </StyledCarouselItem>
+              </StyledCard>
+            </CarouselItem>
           ))}
-        </StyledCarouselContent>
+        </CarouselContent>
         <StyledCarouselPrevious />
         <StyledCarouselNext />
-      </StyledCarousel>
+      </Carousel>
     </ChatCardWrapper>
   );
 };
@@ -372,11 +354,9 @@ export default function LandingPage() {
   const benefitsRef = useRef<HTMLElement>(null)
   const testimonialsRef = useRef<HTMLElement>(null)
   const ctaRef = useRef<HTMLElement>(null)
-  const [initialDelayPassed, setInitialDelayPassed] = useState(true)
 
   useEffect(() => {
     setTheme('light')
-
     return () => {
       setTheme('system')
     }
@@ -388,8 +368,7 @@ export default function LandingPage() {
 
   return (
     <div className="bg-background text-foreground">
-      {/* Header */}
-      <header className="bg-primary text-primary-foreground py-4 px-6 flex justify-between items-center">
+      <header className="bg-primary text-primary-foreground py-4 px-6 flex flex-wrap justify-between items-center">
         <Link href="#" className="text-2xl font-bold" prefetch={false}>
           Promethe<span className="text-accent-foreground">iΛ</span>.
         </Link>
@@ -401,22 +380,22 @@ export default function LandingPage() {
             <li><button onClick={() => scrollToSection(ctaRef)} className="hover:underline">Request Demo</button></li>
           </ul>
         </nav>
-        <Link href="/login" passHref>
-            <Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90">Get Started</Button>
-          </Link>
+        <Link href="/login" passHref className="mt-4 md:mt-0 w-full md:w-auto">
+          <Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90 w-full md:w-auto">Get Started</Button>
+        </Link>
       </header>
 
       <main>
-        <section className="py-24 px-6">
+        <section className="py-12 md:py-24 px-6">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
               <div className="w-full lg:w-1/2 space-y-4 flex flex-col justify-center">
-                <h1 className="text-4xl font-bold">Promethe<span className="text-accent-foreground">iΛ</span>: Where Intelligence Meets Action</h1>
-                <p className="text-xl text-muted-foreground">
+                <h1 className="text-3xl md:text-4xl font-bold">Promethe<span className="text-accent-foreground">iΛ</span>: Where Intelligence Meets Action</h1>
+                <p className="text-lg md:text-xl text-muted-foreground">
                   Automate tasks, streamline workflows, and achieve extraordinary results with our advanced AI agent.
                 </p>
                 <Link href="/login" passHref className="inline-block">
-                  <Button>Get Started</Button>
+                  <Button className="w-full sm:w-auto">Get Started</Button>
                 </Link>
               </div>
               <div className="w-full lg:w-1/2 flex items-center justify-center">
@@ -426,26 +405,26 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section ref={featuresRef} id="features" className="bg-muted py-24 px-6">
-          <div className="container mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
-            <div className="space-y-4">
+        <section ref={featuresRef} id="features" className="bg-muted py-12 md:py-24 px-6">
+          <div className="container mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-12">
+            <div className="space-y-4 p-6 bg-background rounded-lg shadow-sm">
               <Clipboard className="h-12 w-12 text-primary" />
-              <h3 className="text-2xl font-bold">Plan & Execute</h3>
+              <h3 className="text-xl md:text-2xl font-bold">Plan & Execute</h3>
               <p className="text-muted-foreground">
                 Leverage our AI-powered planning and execution capabilities to streamline your workflows and achieve
                 your goals.
               </p>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 p-6 bg-background rounded-lg shadow-sm">
               <Lightbulb className="h-12 w-12 text-primary" />
-              <h3 className="text-2xl font-bold">Learn & Adapt</h3>
+              <h3 className="text-xl md:text-2xl font-bold">Learn & Adapt</h3>
               <p className="text-muted-foreground">
                 Our AI agent continuously learns and adapts to your needs, ensuring you stay ahead of the curve.
               </p>
             </div>
-            <div className="space-y-4">
+            <div className="space-y-4 p-6 bg-background rounded-lg shadow-sm">
               <Users className="h-12 w-12 text-primary" />
-              <h3 className="text-2xl font-bold">Collaborate & Integrate</h3>
+              <h3 className="text-xl md:text-2xl font-bold">Collaborate & Integrate</h3>
               <p className="text-muted-foreground">
                 Seamlessly integrate Promethe<span className="font-bold text-accent-foreground">iΛ</span>. into your existing workflows and collaborate with your team for maximum
                 impact.
@@ -454,35 +433,35 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section ref={benefitsRef} id="benefits" className="py-24 px-6">
-          <div className="container mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div className="bg-primary text-primary-foreground p-8 rounded-lg">
-              <Rocket className="h-12 w-12" />
-              <h3 className="text-2xl font-bold">Boost Productivity</h3>
+        <section ref={benefitsRef} id="benefits" className="py-12 md:py-24 px-6">
+          <div className="container mx-auto grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-12">
+            <div className="bg-primary text-primary-foreground p-6 md:p-8 rounded-lg">
+              <Rocket className="h-12 w-12 mb-4" />
+              <h3 className="text-xl md:text-2xl font-bold mb-2">Boost Productivity</h3>
               <p>
                 Promethe<span className="font-bold text-accent-foreground">iΛ</span>. automates repetitive tasks, freeing up your time to focus on high-impact work and drive your
                 business forward.
               </p>
             </div>
-            <div className="bg-background p-8 rounded-lg">
-              <Brush className="h-12 w-12 text-primary" />
-              <h3 className="text-2xl font-bold">Unleash Creativity</h3>
+            <div className="bg-background p-6 md:p-8 rounded-lg shadow-sm">
+              <Brush className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-xl md:text-2xl font-bold mb-2">Unleash Creativity</h3>
               <p>
                 Our AI agent provides intelligent insights and recommendations, empowering you to explore new ideas and
                 unlock your creative potential.
               </p>
             </div>
-            <div className="bg-background p-8 rounded-lg">
-              <Bolt className="h-12 w-12 text-primary" />
-              <h3 className="text-2xl font-bold">Accelerate Innovation</h3>
+            <div className="bg-background p-6 md:p-8 rounded-lg shadow-sm">
+              <Bolt className="h-12 w-12 text-primary mb-4" />
+              <h3 className="text-xl md:text-2xl font-bold mb-2">Accelerate Innovation</h3>
               <p>
-                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.,s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
+                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.'s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
                 driving innovation at unprecedented speeds.
               </p>
             </div>
-            <div className="bg-primary text-primary-foreground p-8 rounded-lg">
-              <Briefcase className="h-12 w-12" />
-              <h3 className="text-2xl font-bold">Optimize Operations</h3>
+            <div className="bg-primary text-primary-foreground p-6 md:p-8 rounded-lg">
+              <Briefcase className="h-12 w-12 mb-4" />
+              <h3 className="text-xl md:text-2xl font-bold mb-2">Optimize Operations</h3>
               <p>
                 Our AI agent analyzes your workflows and provides data-driven recommendations to streamline your
                 operations and improve efficiency.
@@ -491,61 +470,46 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section ref={testimonialsRef} id="testimonials" className="bg-muted py-24 px-6">
-          <div className="container mx-auto">
-            <Carousel className="max-w-3xl mx-auto">
+        <section ref={testimonialsRef} id="testimonials" className="bg-muted py-12 md:py-24 px-6">
+          <div className="container mx-auto max-w-3xl">
+            <Carousel className="w-full mx-auto">
               <CarouselContent>
                 <CarouselItem>
-                  <div className="space-y-4 text-center">
-                    <blockquote className="text-xl italic">
+                  <div className="space-y-4 text-center p-6">
+                    <blockquote className="text-lg md:text-xl italic">
                       &quot;Promethe<span className="text-accent-foreground">iΛ</span>. has revolutionized the way we work. It&apos;s like having a supercharged assistant on our team.&quot;
                     </blockquote>
                     <div className="text-muted-foreground">- John Doe, CEO at Acme Corp</div>
                   </div>
                 </CarouselItem>
-                <CarouselItem>
-                  <div className="space-y-4 text-center">
-                    <blockquote className="text-xl italic">
-                      &quot;With Promethe<span className="font-bold text-accent-foreground">iΛ</span>., we&apos;ve seen a significant boost in productivity and a dramatic reduction in manual tasks.&quot;
-                    </blockquote>
-                    <div className="text-muted-foreground">- Jane Smith, Head of Operations at Globex Inc</div>
-                  </div>
-                </CarouselItem>
-                <CarouselItem>
-                  <div className="space-y-4 text-center">
-                    <blockquote className="text-xl italic">
-                      &quot;Promethe<span className="font-bold text-accent-foreground">iΛ</span>. has been a game-changer for our team. It&apos;s like having a highly intelligent and tireless co-worker.&quot;
-                    </blockquote>
-                    <div className="text-muted-foreground">- Michael Johnson, CTO at Technosoft Solutions</div>
-                  </div>
-                </CarouselItem>
+                {/* Add other testimonials here */}
               </CarouselContent>
-              <CarouselPrevious />
-              <CarouselNext />
+              <CarouselPrevious className="hidden sm:flex" />
+              <CarouselNext className="hidden sm:flex" />
             </Carousel>
           </div>
         </section>
 
-        <section ref={ctaRef} id="cta" className="py-24 px-6">
-          <div className="container mx-auto max-w-3xl text-center space-y-4">
-            <h2 className="text-3xl font-bold">Experience the Future of Work</h2>
+        <section ref={ctaRef} id="cta" className="py-12 md:py-24 px-6">
+          <div className="container mx-auto max-w-3xl text-center space-y-6">
+            <h2 className="text-2xl md:text-3xl font-bold">Experience the Future of Work</h2>
             <p className="text-muted-foreground">
               Discover how Promethe<span className="font-bold text-accent-foreground">iΛ</span>. can transform your business and unlock new levels of productivity, creativity, and
               innovation.
             </p>
-            <Button>Request a Demo</Button>
+            <Button className="w-full sm:w-auto">Request a Demo</Button>
           </div>
         </section>
       </main>
 
       <footer className="bg-primary text-primary-foreground py-6 px-6">
-        <div className="container mx-auto flex justify-between items-center">
+        <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
           <p className="text-sm">&copy; 2024 Promethe<span className="text-accent-foreground">iΛ</span>. All rights reserved.</p>
           <div className="flex gap-4">
-            <Link href="#" className="hover:underline" prefetch={false}>
+            <Link href="#" className="hover:underline text-sm" prefetch={false}>
               Privacy Policy
             </Link>
-            <Link href="#" className="hover:underline" prefetch={false}>
+            <Link href="#" className="hover:underline text-sm" prefetch={false}>
               Terms of Service
             </Link>
           </div>
