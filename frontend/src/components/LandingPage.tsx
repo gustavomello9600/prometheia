@@ -130,6 +130,21 @@ const ChatCardWrapper = styled.div`
   padding: 0 ${ARROW_SIZE};
 `;
 
+const StyledCarousel = styled(Carousel)`
+  .embla__viewport {
+    overflow: visible;
+  }
+`;
+
+const StyledCarouselContent = styled(CarouselContent)`
+  margin: 0;
+  padding: 0;
+`;
+
+const StyledCarouselItem = styled(CarouselItem)`
+  padding: 0;
+`;
+
 const StyledCarouselPrevious = styled(CarouselPrevious)`
   position: absolute;
   top: 50%;
@@ -209,7 +224,7 @@ const ChatCardCarousel = () => {
 
   return (
     <ChatCardWrapper>
-      <Carousel
+      <StyledCarousel
         ref={emblaRef}
         opts={{
           align: "center",
@@ -218,9 +233,9 @@ const ChatCardCarousel = () => {
         }}
         className="w-full relative"
       >
-        <CarouselContent className="w-full">
+        <StyledCarouselContent>
           {scenarios.map((scenario, index) => (
-            <CarouselItem key={index} className="flex justify-center items-center">
+            <StyledCarouselItem key={index}>
               <Card className="w-full bg-background text-foreground overflow-hidden">
                 <CarouselChatContent 
                   scenario={scenario} 
@@ -228,12 +243,12 @@ const ChatCardCarousel = () => {
                   animationTrigger={animationTrigger}
                 />
               </Card>
-            </CarouselItem>
+            </StyledCarouselItem>
           ))}
-        </CarouselContent>
+        </StyledCarouselContent>
         <StyledCarouselPrevious />
         <StyledCarouselNext />
-      </Carousel>
+      </StyledCarousel>
     </ChatCardWrapper>
   );
 };
