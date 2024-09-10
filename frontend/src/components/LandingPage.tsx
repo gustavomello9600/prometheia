@@ -121,14 +121,13 @@ const StepExplanation = styled.p`
   animation: ${fadeIn} 0.5s ease-in forwards;
 `;
 
-const SECTION_WIDTH = '600px';
 const ARROW_SIZE = '30px';
 
 const ChatCardWrapper = styled.div`
   position: relative;
-  width: calc(${SECTION_WIDTH} + 2 * ${ARROW_SIZE});
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
+  padding: 0 ${ARROW_SIZE};
 `;
 
 const StyledCarouselPrevious = styled(CarouselPrevious)`
@@ -222,7 +221,7 @@ const ChatCardCarousel = () => {
         <CarouselContent className="w-full">
           {scenarios.map((scenario, index) => (
             <CarouselItem key={index} className="flex justify-center items-center">
-              <Card className={`w-[${SECTION_WIDTH}] bg-background text-foreground overflow-hidden`}>
+              <Card className="w-full bg-background text-foreground overflow-hidden">
                 <CarouselChatContent 
                   scenario={scenario} 
                   isActive={index === activeIndex}
@@ -395,8 +394,8 @@ export default function LandingPage() {
       <main>
         <section className="py-24 px-6">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex flex-col lg:flex-row items-center justify-between gap-12 min-h-[600px]">
-              <div className="w-full lg:w-[${SECTION_WIDTH}] space-y-4 flex flex-col justify-center">
+            <div className="flex flex-col lg:flex-row items-center justify-between gap-12">
+              <div className="w-full lg:w-1/2 space-y-4 flex flex-col justify-center">
                 <h1 className="text-4xl font-bold">Promethe<span className="text-accent-foreground">iΛ</span>: Where Intelligence Meets Action</h1>
                 <p className="text-xl text-muted-foreground">
                   Automate tasks, streamline workflows, and achieve extraordinary results with our advanced AI agent.
@@ -405,7 +404,7 @@ export default function LandingPage() {
                   <Button>Get Started</Button>
                 </Link>
               </div>
-              <div className="w-full lg:w-[calc(${SECTION_WIDTH}+2*${ARROW_SIZE})] flex items-center justify-center overflow-visible">
+              <div className="w-full lg:w-1/2 flex items-center justify-center">
                 <ChatCardCarousel />
               </div>
             </div>
