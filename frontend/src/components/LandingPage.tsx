@@ -223,7 +223,7 @@ const ChatCardCarousel = () => {
         <CarouselContent className="w-full">
           {scenarios.map((scenario, index) => (
             <CarouselItem key={index} className="flex justify-center items-center">
-              <Card className={`w-[${CARD_WIDTH}] bg-background text-foreground overflow-hidden`}>
+              <Card style={{ width: CARD_WIDTH }} className={`bg-background text-foreground overflow-hidden`}>
                 <CarouselChatContent 
                   scenario={scenario} 
                   isActive={index === activeIndex}
