@@ -157,14 +157,14 @@ class LLMInteraction:
     def plan_actions_stream(self, intention, conversation_history, strategy_data):
         logging.info("Planning actions stream")
         # Implement streaming for plan_actions
-        yield {"type": "content", "data": "Plan Actions Strategy not fully implemented for streaming."}
+        yield {"type": "content", "data": "Plan Actions Strategy feature not fully implemented yet."}
 
     @traceable(run_type="chain")
     @groq_retry
     def multi_agent_workflow_stream(self, intention, conversation_history, strategy_data):
         logging.info("Executing multi-agent workflow stream")
         # Implement streaming for multi_agent_workflow
-        yield {"type": "content", "data": "Multi-Agent Workflow Strategy not fully implemented for streaming."}
+        yield {"type": "content", "data": "Multi-Agent Workflow Strategy feature not fully implemented yet."}
 
     @traceable(run_type="chain")
     @groq_retry
