@@ -121,17 +121,29 @@ const StepExplanation = styled.p`
   animation: ${fadeIn} 0.5s ease-in forwards;
 `;
 
+const CARD_WIDTH = '600px';
+const ARROW_SIZE = '30px'; // Define a fixed size for the arrows
+
+const ChatCardWrapper = styled.div`
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+  padding: 0 ${ARROW_SIZE};
+`;
+
 const StyledCarouselPrevious = styled(CarouselPrevious)`
   position: absolute;
   top: 50%;
   left: 0;
-  transform: translateY(-50%) translateX(-50%);
+  transform: translateY(-50%);
   background-color: hsl(var(--background));
   box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
-  opacity: 0.7;
-  z-index: 10;
+  z-index: 20;
+  width: ${ARROW_SIZE};
+  height: ${ARROW_SIZE};
   &:hover {
-    opacity: 1;
+    opacity: 0.8;
   }
 `;
 
@@ -139,21 +151,15 @@ const StyledCarouselNext = styled(CarouselNext)`
   position: absolute;
   top: 50%;
   right: 0;
-  transform: translateY(-50%) translateX(50%);
+  transform: translateY(-50%);
   background-color: hsl(var(--background));
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
-  opacity: 0.7;
-  z-index: 10;
+  z-index: 20;
+  width: ${ARROW_SIZE};
+  height: ${ARROW_SIZE};
   &:hover {
-    opacity: 1;
+    opacity: 0.8;
   }
-`;
-
-const ChatCardWrapper = styled.div`
-  position: relative;
-  width: 100%;
-  max-width: 100%;
-  overflow: hidden;
 `;
 
 const ChatCardCarousel = () => {
@@ -208,15 +214,16 @@ const ChatCardCarousel = () => {
       <Carousel
         ref={emblaRef}
         opts={{
-          align: "start",
+          align: "center",
           loop: true,
+          containScroll: 'trimSnaps'
         }}
         className="w-full relative"
       >
-        <CarouselContent>
+        <CarouselContent className="w-full">
           {scenarios.map((scenario, index) => (
-            <CarouselItem key={index} className="w-full">
-              <Card className="w-full bg-background text-foreground overflow-hidden">
+            <CarouselItem key={index} className="flex justify-center items-center">
+              <Card className={`w-[${CARD_WIDTH}] bg-background text-foreground overflow-hidden`}>
                 <CarouselChatContent 
                   scenario={scenario} 
                   isActive={index === activeIndex}
@@ -456,7 +463,7 @@ export default function LandingPage() {
               <Bolt className="h-12 w-12 text-primary" />
               <h3 className="text-2xl font-bold">Accelerate Innovation</h3>
               <p>
-                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.&apos;s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
+                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.,s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
                 driving innovation at unprecedented speeds.
               </p>
             </div>

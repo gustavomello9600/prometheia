@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import axios from 'axios';
+import { Loader2 } from 'lucide-react'; // Add this import
 
 export default function CreateAccountPage() {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,6 +19,7 @@ export default function CreateAccountPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
   const handleCreateAccount = async (e: React.FormEvent) => {
@@ -26,6 +28,7 @@ export default function CreateAccountPage() {
       alert("Passwords do not match");
       return;
     }
+    setIsLoading(true);
     try {
       console.log('Attempting to register with email:', email);
       const response = await register(email, password, name);
@@ -43,6 +46,8 @@ export default function CreateAccountPage() {
       } else {
         alert(`An error occurred: ${error instanceof Error ? error.message : String(error)}`);
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -134,8 +139,13 @@ export default function CreateAccountPage() {
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">
-            <Button type="submit" className="w-full">
-              <UserPlus className="mr-2 h-4 w-4" /> Create Account
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <UserPlus className="mr-2 h-4 w-4" />
+              )}
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </Button>
             <p className="text-sm text-center text-muted-foreground">
               Already have an account? <Link href="/login" className="text-primary hover:underline">Log in</Link>

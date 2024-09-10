@@ -8,17 +8,20 @@ import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Loader2 } from 'lucide-react'; // Add this import
 
 export default function LoginPage() {
   const [showPassword, setShowPassword] = React.useState(false);
   const [email, setEmail] = React.useState('');
   const [password, setPassword] = React.useState('');
   const [error, setError] = React.useState('');
+  const [isLoading, setIsLoading] = React.useState(false);
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
     console.log('Attempting login with:', { email });
     try {
       const result = await signIn('credentials', {
@@ -37,6 +40,8 @@ export default function LoginPage() {
     } catch (error) {
       setError('An unexpected error occurred');
       console.error('Login error:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -98,8 +103,13 @@ export default function LoginPage() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Button className="w-full font-medium" onClick={handleLogin}>
-            <LogIn className="mr-2 h-4 w-4" /> Log In
+          <Button className="w-full font-medium" onClick={handleLogin} disabled={isLoading}>
+            {isLoading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <LogIn className="mr-2 h-4 w-4" />
+            )}
+            {isLoading ? 'Logging in...' : 'Log In'}
           </Button>
           <p className="text-sm text-center">
             Don&apos;t have an account? <Link href="/create-account" className="hover:underline hover:text-accent-foreground">Sign up</Link>
