@@ -121,20 +121,16 @@ const StepExplanation = styled.p`
   animation: ${fadeIn} 0.5s ease-in forwards;
 `;
 
-const CARD_WIDTH = '600px';
-const ARROW_SIZE = '30px'; // Define a fixed size for the arrows
+const SECTION_WIDTH = '600px';
+const ARROW_SIZE = '30px';
 
-// Ensure the carousel wrapper has enough width and manages overflow properly
 const ChatCardWrapper = styled.div`
   position: relative;
-  width: 100%;
+  width: calc(${SECTION_WIDTH} + 2 * ${ARROW_SIZE});
   max-width: 100%;
-  overflow: hidden; /* Hide overflow content */
-  padding: 0 ${ARROW_SIZE}; /* Padding to handle arrows */
-  box-sizing: border-box;
+  margin: 0 auto;
 `;
 
-// Ensure the arrows are well-positioned
 const StyledCarouselPrevious = styled(CarouselPrevious)`
   position: absolute;
   top: 50%;
@@ -178,47 +174,26 @@ const ChatCardCarousel = () => {
       ]
     },
     {
-      title: "Social Media Marketing Strategy",
-      userMessage: "How can I increase engagement on my company's social media platforms?",
-      aiResponse: "To increase engagement on social media, we can implement a targeted strategy. Let's walk through some effective steps to boost your presence.",
+      title: "SaaS Growth Strategy",
+      userMessage: "Can you help me develop a 5-year growth strategy for my SaaS startup?",
+      aiResponse: "Absolutely! I'd be glad to assist you in creating a 5-year growth strategy for your SaaS startup. Let's approach this systematically to ensure we cover all key areas.",
       steps: [
-        { step: "Create audience personas", explanation: "Understand your target audience's preferences, demographics, and behaviors to tailor your content." },
-        { step: "Optimize content for platforms", explanation: "Adapt your content format and messaging for each social media platform to maximize reach and engagement." },
-        { step: "Leverage user-generated content", explanation: "Encourage your followers to share content related to your brand, boosting authenticity and engagement." }
+        { step: "Assess market trends and competition", explanation: "Analyze industry dynamics, identify key competitors, and forecast market evolution." },
+        { step: "Define growth objectives and KPIs", explanation: "Establish clear, measurable goals for user acquisition, revenue, and market share." },
+        { step: "Formulate actionable strategies", explanation: "Develop specific tactics for product development, marketing, and scaling operations." }
       ]
     },
     {
-      title: "Personal Finance Management",
-      userMessage: "What steps should I take to better manage my personal finances?",
-      aiResponse: "Managing personal finances can be simplified with a structured approach. Here's a step-by-step guide to get you on track.",
+      title: "Database Query Optimization",
+      userMessage: "I need help optimizing a complex database query that's slowing down my application. Can you assist?",
+      aiResponse: "Of course! I'd be happy to help you optimize your complex database query to improve your application's performance. Let's tackle this step by step.",
       steps: [
-        { step: "Create a monthly budget", explanation: "Outline your income and expenses, allocating funds for essential needs, savings, and discretionary spending." },
-        { step: "Track and reduce unnecessary spending", explanation: "Monitor your daily expenses and identify areas where you can cut back on non-essential purchases." },
-        { step: "Establish an emergency fund", explanation: "Set aside a portion of your income to build a fund that covers 3-6 months of living expenses for unexpected situations." }
-      ]
-    },
-    {
-      title: "Classroom Management for Teachers",
-      userMessage: "How can I improve classroom management and engage my students more effectively?",
-      aiResponse: "Improving classroom management requires a mix of organization, engagement, and behavior management strategies. Here's how you can enhance your approach.",
-      steps: [
-        { step: "Establish clear rules and routines", explanation: "Set expectations for behavior and classroom activities, making sure students understand and follow them." },
-        { step: "Incorporate interactive learning", explanation: "Use games, group work, and technology to make lessons more engaging and participatory." },
-        { step: "Positive reinforcement and feedback", explanation: "Recognize good behavior and academic achievements, offering praise and rewards to motivate students." }
-      ]
-    },
-    {
-      title: "Creative Writing Process",
-      userMessage: "I want to improve my creative writing skills. What should I focus on?",
-      aiResponse: "Creative writing is all about honing your imagination and narrative skills. Here are some key areas to focus on for improvement.",
-      steps: [
-        { step: "Develop a writing routine", explanation: "Set aside dedicated time each day to practice writing and experiment with different genres and styles." },
-        { step: "Study storytelling techniques", explanation: "Learn about plot structure, character development, and pacing to enhance your narrative skills." },
-        { step: "Seek feedback and revise", explanation: "Share your writing with others for constructive criticism, and don't be afraid to rewrite and improve your work." }
+        { step: "Analyze query structure and execution plan", explanation: "Examine the current query and its execution plan to understand performance bottlenecks." },
+        { step: "Identify optimization opportunities", explanation: "Determine areas for improvement, such as indexing, join optimizations, or query restructuring." },
+        { step: "Rewrite and test optimized query", explanation: "Implement the optimizations and conduct performance testing to verify improvements." }
       ]
     }
   ];
-  
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [animationTrigger, setAnimationTrigger] = useState(0);
@@ -247,10 +222,7 @@ const ChatCardCarousel = () => {
         <CarouselContent className="w-full">
           {scenarios.map((scenario, index) => (
             <CarouselItem key={index} className="flex justify-center items-center">
-              <Card
-                style={{ width: CARD_WIDTH }}  // Ensure the card has a fixed width
-                className="bg-background text-foreground overflow-hidden"
-              >
+              <Card className={`w-[${SECTION_WIDTH}] bg-background text-foreground overflow-hidden`}>
                 <CarouselChatContent 
                   scenario={scenario} 
                   isActive={index === activeIndex}
@@ -386,6 +358,7 @@ export default function LandingPage() {
   const benefitsRef = useRef<HTMLElement>(null)
   const testimonialsRef = useRef<HTMLElement>(null)
   const ctaRef = useRef<HTMLElement>(null)
+  const [initialDelayPassed, setInitialDelayPassed] = useState(true)
 
   useEffect(() => {
     setTheme('light')
@@ -415,15 +388,15 @@ export default function LandingPage() {
           </ul>
         </nav>
         <Link href="/login" passHref>
-          <Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90">Get Started</Button>
-        </Link>
+            <Button variant="outline" className="bg-primary text-primary-foreground hover:bg-primary/90">Get Started</Button>
+          </Link>
       </header>
 
       <main>
         <section className="py-24 px-6">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col lg:flex-row items-center justify-between gap-12 min-h-[600px]">
-              <div className="w-full lg:w-1/2 space-y-4 flex flex-col justify-center">
+              <div className="w-full lg:w-[${SECTION_WIDTH}] space-y-4 flex flex-col justify-center">
                 <h1 className="text-4xl font-bold">Promethe<span className="text-accent-foreground">iΛ</span>: Where Intelligence Meets Action</h1>
                 <p className="text-xl text-muted-foreground">
                   Automate tasks, streamline workflows, and achieve extraordinary results with our advanced AI agent.
@@ -432,15 +405,138 @@ export default function LandingPage() {
                   <Button>Get Started</Button>
                 </Link>
               </div>
-              <div className="w-full lg:w-1/2 flex items-center overflow-hidden">
+              <div className="w-full lg:w-[calc(${SECTION_WIDTH}+2*${ARROW_SIZE})] flex items-center justify-center overflow-visible">
                 <ChatCardCarousel />
               </div>
             </div>
           </div>
         </section>
 
-        {/* Remaining sections */}
+        <section ref={featuresRef} id="features" className="bg-muted py-24 px-6">
+          <div className="container mx-auto grid grid-cols-1 md:grid-cols-3 gap-12">
+            <div className="space-y-4">
+              <Clipboard className="h-12 w-12 text-primary" />
+              <h3 className="text-2xl font-bold">Plan & Execute</h3>
+              <p className="text-muted-foreground">
+                Leverage our AI-powered planning and execution capabilities to streamline your workflows and achieve
+                your goals.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <Lightbulb className="h-12 w-12 text-primary" />
+              <h3 className="text-2xl font-bold">Learn & Adapt</h3>
+              <p className="text-muted-foreground">
+                Our AI agent continuously learns and adapts to your needs, ensuring you stay ahead of the curve.
+              </p>
+            </div>
+            <div className="space-y-4">
+              <Users className="h-12 w-12 text-primary" />
+              <h3 className="text-2xl font-bold">Collaborate & Integrate</h3>
+              <p className="text-muted-foreground">
+                Seamlessly integrate Promethe<span className="font-bold text-accent-foreground">iΛ</span>. into your existing workflows and collaborate with your team for maximum
+                impact.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section ref={benefitsRef} id="benefits" className="py-24 px-6">
+          <div className="container mx-auto grid grid-cols-1 md:grid-cols-2 gap-12">
+            <div className="bg-primary text-primary-foreground p-8 rounded-lg">
+              <Rocket className="h-12 w-12" />
+              <h3 className="text-2xl font-bold">Boost Productivity</h3>
+              <p>
+                Promethe<span className="font-bold text-accent-foreground">iΛ</span>. automates repetitive tasks, freeing up your time to focus on high-impact work and drive your
+                business forward.
+              </p>
+            </div>
+            <div className="bg-background p-8 rounded-lg">
+              <Brush className="h-12 w-12 text-primary" />
+              <h3 className="text-2xl font-bold">Unleash Creativity</h3>
+              <p>
+                Our AI agent provides intelligent insights and recommendations, empowering you to explore new ideas and
+                unlock your creative potential.
+              </p>
+            </div>
+            <div className="bg-background p-8 rounded-lg">
+              <Bolt className="h-12 w-12 text-primary" />
+              <h3 className="text-2xl font-bold">Accelerate Innovation</h3>
+              <p>
+                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.,s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
+                driving innovation at unprecedented speeds.
+              </p>
+            </div>
+            <div className="bg-primary text-primary-foreground p-8 rounded-lg">
+              <Briefcase className="h-12 w-12" />
+              <h3 className="text-2xl font-bold">Optimize Operations</h3>
+              <p>
+                Our AI agent analyzes your workflows and provides data-driven recommendations to streamline your
+                operations and improve efficiency.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section ref={testimonialsRef} id="testimonials" className="bg-muted py-24 px-6">
+          <div className="container mx-auto">
+            <Carousel className="max-w-3xl mx-auto">
+              <CarouselContent>
+                <CarouselItem>
+                  <div className="space-y-4 text-center">
+                    <blockquote className="text-xl italic">
+                      &quot;Promethe<span className="text-accent-foreground">iΛ</span>. has revolutionized the way we work. It&apos;s like having a supercharged assistant on our team.&quot;
+                    </blockquote>
+                    <div className="text-muted-foreground">- John Doe, CEO at Acme Corp</div>
+                  </div>
+                </CarouselItem>
+                <CarouselItem>
+                  <div className="space-y-4 text-center">
+                    <blockquote className="text-xl italic">
+                      &quot;With Promethe<span className="font-bold text-accent-foreground">iΛ</span>., we&apos;ve seen a significant boost in productivity and a dramatic reduction in manual tasks.&quot;
+                    </blockquote>
+                    <div className="text-muted-foreground">- Jane Smith, Head of Operations at Globex Inc</div>
+                  </div>
+                </CarouselItem>
+                <CarouselItem>
+                  <div className="space-y-4 text-center">
+                    <blockquote className="text-xl italic">
+                      &quot;Promethe<span className="font-bold text-accent-foreground">iΛ</span>. has been a game-changer for our team. It&apos;s like having a highly intelligent and tireless co-worker.&quot;
+                    </blockquote>
+                    <div className="text-muted-foreground">- Michael Johnson, CTO at Technosoft Solutions</div>
+                  </div>
+                </CarouselItem>
+              </CarouselContent>
+              <CarouselPrevious />
+              <CarouselNext />
+            </Carousel>
+          </div>
+        </section>
+
+        <section ref={ctaRef} id="cta" className="py-24 px-6">
+          <div className="container mx-auto max-w-3xl text-center space-y-4">
+            <h2 className="text-3xl font-bold">Experience the Future of Work</h2>
+            <p className="text-muted-foreground">
+              Discover how Promethe<span className="font-bold text-accent-foreground">iΛ</span>. can transform your business and unlock new levels of productivity, creativity, and
+              innovation.
+            </p>
+            <Button>Request a Demo</Button>
+          </div>
+        </section>
       </main>
+
+      <footer className="bg-primary text-primary-foreground py-6 px-6">
+        <div className="container mx-auto flex justify-between items-center">
+          <p className="text-sm">&copy; 2024 Promethe<span className="text-accent-foreground">iΛ</span>. All rights reserved.</p>
+          <div className="flex gap-4">
+            <Link href="#" className="hover:underline" prefetch={false}>
+              Privacy Policy
+            </Link>
+            <Link href="#" className="hover:underline" prefetch={false}>
+              Terms of Service
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
