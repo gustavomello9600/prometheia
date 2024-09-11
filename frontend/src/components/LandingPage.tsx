@@ -126,13 +126,14 @@ const CARD_PADDING = `calc(${ARROW_SIZE} / 2)`;
 const ChatCardWrapper = styled.div`
   position: relative;
   width: 100%;
-  max-width: 100%;
+  max-width: 600px;
   padding: 0 ${ARROW_SIZE};
 `;
 
 const StyledCard = styled(Card)`
   padding-left: ${CARD_PADDING};
   padding-right: ${CARD_PADDING};
+  max-width: 100%;
 `;
 
 const StyledCarouselPrevious = styled(CarouselPrevious)`
