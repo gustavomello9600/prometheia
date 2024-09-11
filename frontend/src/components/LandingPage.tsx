@@ -3,7 +3,7 @@
 import React, { useRef, useState, useEffect } from 'react'
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext } from "@/components/ui/carousel"
+import { Carousel, CarouselContent, CarouselItem, CarouselPrevious, CarouselNext, type CarouselApi } from "@/components/ui/carousel"
 import { Clipboard, Lightbulb, Users, Rocket, Brush, Bolt, Briefcase, ChevronDown, ChevronUp } from 'lucide-react'
 import { Card } from "@/components/ui/card"
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
@@ -201,6 +201,24 @@ const ChatCardCarousel = () => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const [animationTrigger, setAnimationTrigger] = useState(0);
+  const [api, setApi] = useState<CarouselApi | null>(null);
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    const onSelectHandler = () => {
+      setActiveIndex(api.selectedScrollSnap());
+      setAnimationTrigger(prev => prev + 1);
+    };
+
+    api.on("select", onSelectHandler);
+
+    return () => {
+      api.off("select", onSelectHandler);
+    };
+  }, [api]);
 
   return (
     <ChatCardWrapper>
@@ -209,11 +227,8 @@ const ChatCardCarousel = () => {
           align: "center",
           loop: true,
         }}
+        setApi={setApi}
         className="w-full relative"
-        onSelect={(api) => {
-          setActiveIndex(api.selectedScrollSnap());
-          setAnimationTrigger(prev => prev + 1);
-        }}
       >
         <CarouselContent>
           {scenarios.map((scenario, index) => (
@@ -455,7 +470,7 @@ export default function LandingPage() {
               <Bolt className="h-12 w-12 text-primary mb-4" />
               <h3 className="text-xl md:text-2xl font-bold mb-2">Accelerate Innovation</h3>
               <p>
-                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.'s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
+                Leverage Promethe<span className="font-bold text-accent-foreground">iΛ</span>.&apos;s advanced capabilities to rapidly prototype, test, and iterate on new ideas,
                 driving innovation at unprecedented speeds.
               </p>
             </div>
