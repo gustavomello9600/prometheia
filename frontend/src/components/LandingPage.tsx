@@ -22,14 +22,14 @@ const fadeIn = keyframes`
   to { opacity: 1; }
 `;
 
-const inflateAnimation = keyframes`
-  from { transform: scale(0); }
-  to { transform: scale(1); }
-`;
-
 const textRevealAnimation = keyframes`
   from { clip-path: inset(0 100% 0 0); }
   to { clip-path: inset(0 0 0 0); }
+`;
+
+const inflateAnimation = keyframes`
+  from { transform: scale(0); }
+  to { transform: scale(1); }
 `;
 
 const extendLineAnimation = keyframes`
@@ -43,27 +43,7 @@ const ChatMessage = styled.div<{ delay: number }>`
   animation-delay: ${props => props.delay}ms;
 `;
 
-const StepTimeline = styled.ul`
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-top: 0.5rem;
-  gap: 0.5rem;
-`;
-
-const Step = styled.li<{ isActive: boolean; delay: number }>`
-  display: flex;
-  align-items: flex-start;
-  opacity: 0;
-  animation: ${fadeIn} 0.5s ease-in forwards;
-  animation-delay: ${props => props.delay}ms;
-  position: relative;
-  padding-left: 1rem;
-`;
-
 const StepText = styled.span<{ isActive: boolean; delay: number }>`
-  font-size: 0.875rem;
-  color: var(--foreground);
   position: relative;
   display: inline-block;
   clip-path: inset(0 100% 0 0);
@@ -76,18 +56,14 @@ const Bullet = styled.div<{ isActive: boolean; delay: number }>`
   height: 0.6rem;
   border-radius: 50%;
   background-color: hsl(var(--primary));
-  margin-right: 0.5rem;
   transform: scale(0);
   animation: ${inflateAnimation} 0.5s ease-out forwards;
   animation-delay: ${props => props.delay + 500}ms;
-  position: relative;
-  z-index: 1;
-  margin-top: 0.45rem;
 `;
 
 const Line = styled.div<{ isActive: boolean; delay: number }>`
   position: absolute;
-  left: 1.26rem;
+  left: -0.2rem;
   top: 1rem;
   bottom: 0;
   width: 0.1rem;
@@ -96,74 +72,6 @@ const Line = styled.div<{ isActive: boolean; delay: number }>`
   height: 0;
   animation: ${extendLineAnimation} 0.5s ease-out forwards;
   animation-delay: ${props => props.delay + 750}ms;
-`;
-
-const StepContent = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  padding-top: 0.1rem;
-`;
-
-const StepHeader = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-`;
-
-const StepExplanation = styled.p`
-  margin-top: 0.5rem;
-  margin-left: 1.5rem;
-  font-size: 0.8rem;
-  color: var(--muted-foreground);
-  opacity: 0;
-  animation: ${fadeIn} 0.5s ease-in forwards;
-`;
-
-const ARROW_SIZE = '30px';
-const CARD_PADDING = `calc(${ARROW_SIZE} / 2)`;
-
-const ChatCardWrapper = styled.div`
-  position: relative;
-  width: 100%;
-  max-width: 600px;
-  padding: 0 ${ARROW_SIZE};
-`;
-
-const StyledCard = styled(Card)`
-  padding-left: ${CARD_PADDING};
-  padding-right: ${CARD_PADDING};
-  max-width: 100%;
-`;
-
-const StyledCarouselPrevious = styled(CarouselPrevious)`
-  position: absolute;
-  top: 50%;
-  left: 0;
-  transform: translateY(-50%);
-  background-color: hsl(var(--background));
-  box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
-  z-index: 20;
-  width: ${ARROW_SIZE};
-  height: ${ARROW_SIZE};
-  &:hover {
-    opacity: 0.8;
-  }
-`;
-
-const StyledCarouselNext = styled(CarouselNext)`
-  position: absolute;
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
-  background-color: hsl(var(--background));
-  box-shadow: 2px 0 4px rgba(0, 0, 0, 0.1);
-  z-index: 20;
-  width: ${ARROW_SIZE};
-  height: ${ARROW_SIZE};
-  &:hover {
-    opacity: 0.8;
-  }
 `;
 
 const ChatCardCarousel = () => {
@@ -222,7 +130,7 @@ const ChatCardCarousel = () => {
   }, [api]);
 
   return (
-    <ChatCardWrapper>
+    <div className="relative w-full max-w-2xl mx-auto">
       <Carousel
         opts={{
           align: "center",
@@ -234,20 +142,20 @@ const ChatCardCarousel = () => {
         <CarouselContent>
           {scenarios.map((scenario, index) => (
             <CarouselItem key={index}>
-              <StyledCard className="w-full bg-background text-foreground overflow-hidden">
+              <div className="w-full bg-background text-foreground overflow-hidden rounded-lg shadow-md">
                 <CarouselChatContent 
                   scenario={scenario} 
                   isActive={index === activeIndex}
                   animationTrigger={animationTrigger}
                 />
-              </StyledCard>
+              </div>
             </CarouselItem>
           ))}
         </CarouselContent>
-        <StyledCarouselPrevious />
-        <StyledCarouselNext />
+        <CarouselPrevious className="absolute left-0 top-1/2 -translate-y-1/2 bg-background shadow-md" />
+        <CarouselNext className="absolute right-0 top-1/2 -translate-y-1/2 bg-background shadow-md" />
       </Carousel>
-    </ChatCardWrapper>
+    </div>
   );
 };
 
@@ -299,9 +207,9 @@ const CarouselChatContent: React.FC<{
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 bg-background border border-border rounded-lg shadow-sm">
       {/* Header */}
-      <div className="flex items-center p-4 border-b">
+      <div className="flex items-center p-4 border-b border-border">
         <Avatar className="w-10 h-10">
           <AvatarImage src="/placeholder.svg?height=40&width=40" alt="AI Avatar" />
           <AvatarFallback>iΛ.</AvatarFallback>
@@ -317,46 +225,49 @@ const CarouselChatContent: React.FC<{
       {showContent && (
         <>
           <ChatMessage delay={0} className="flex justify-end">
-            <Card className="max-w-[70%] p-3 bg-secondary text-secondary-foreground">
+            <div className="max-w-[70%] p-3 bg-secondary text-secondary-foreground rounded-lg border border-border">
               <p className="text-base">{scenario.userMessage}</p>
-            </Card>
+            </div>
           </ChatMessage>
           <ChatMessage delay={500} className="flex justify-start">
-            <Card className="max-w-[70%] p-3 bg-secondary text-secondary-foreground">
+            <div className="max-w-[70%] p-3 bg-secondary text-secondary-foreground rounded-lg border border-border">
               <p className="text-base">{scenario.aiResponse}</p>
               {showSteps && (
                 <>
                   <p className="mt-2 text-sm text-muted-foreground">Showing steps</p>
-                  <StepTimeline>
-                    {scenario.steps.map((step: { step: string; explanation: string }, index: number) => {
+                  <ul className="mt-2 space-y-2">
+                    {scenario.steps.map((step, index) => {
                       const isActive = activeStep >= index;
                       const delay = index * 1000;
                       return (
-                        <Step key={`${animationTrigger}-${index}`} isActive={isActive} delay={delay}>
-                          <Bullet isActive={isActive} delay={delay} />
+                        <li key={`${animationTrigger}-${index}`} className="flex items-start space-x-2 relative">
+                          <Bullet isActive={isActive} delay={delay} className="mt-1.5 flex-shrink-0" />
                           {index < scenario.steps.length - 1 && <Line isActive={isActive} delay={delay} />}
-                          <StepContent>
-                            <StepHeader onClick={() => toggleExplanation(index)}>
+                          <div className="flex-1">
+                            <button 
+                              onClick={() => toggleExplanation(index)}
+                              className="flex items-center text-sm font-medium"
+                            >
                               <StepText isActive={isActive} delay={delay}>{step.step}</StepText>
                               {expandedExplanations[index] ? (
                                 <ChevronUp size={16} className="ml-2" />
                               ) : (
                                 <ChevronDown size={16} className="ml-2" />
                               )}
-                            </StepHeader>
+                            </button>
                             {expandedExplanations[index] && (
-                              <StepExplanation>
+                              <p className="mt-1 text-sm text-muted-foreground">
                                 {step.explanation}
-                              </StepExplanation>
+                              </p>
                             )}
-                          </StepContent>
-                        </Step>
+                          </div>
+                        </li>
                       );
                     })}
-                  </StepTimeline>
+                  </ul>
                 </>
               )}
-            </Card>
+            </div>
           </ChatMessage>
         </>
       )}
