@@ -11,7 +11,7 @@ from langchain.output_parsers import RetryOutputParser
 from langchain_core.output_parsers import JsonOutputParser 
 from langchain_core.output_parsers import StrOutputParser
 from langsmith import traceable, trace
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, RetryError
 
 from prompts import PROMPTS
 from llm_models import QuickLLM, SmarterLLM, FunctionCallingLLM
@@ -71,22 +71,27 @@ class LLMInteraction:
 
         last_message = messages[-1].split('\n', 1)[1]  # Get the content of the last message
 
-        yield {'type': 'steps', 'data': {'step': 'Understanding context', 'explanation': 'Interpreting conversation history'}}
-        relevant_points = self.digest_conversation_history(conversation_history)
-        logging.info(f"Relevant points from conversation history: {relevant_points}")
+        try:
+            yield {'type': 'steps', 'data': {'step': 'Understanding context', 'explanation': 'Interpreting conversation history'}}
+            relevant_points = self.digest_conversation_history(conversation_history)
+            logging.info(f"Relevant points from conversation history: {relevant_points}")
 
-        combined_input = f"{last_message}\n\nRelevant points from previous conversation:\n{relevant_points}"
+            combined_input = f"{last_message}\n\nRelevant points from previous conversation:\n{relevant_points}"
 
-        yield {'type': 'steps', 'data': {'step': 'Understanding intent', 'explanation': 'Inferring user\'s intent'}}
-        intention = self.infer_user_intention(combined_input)
-        logging.info(f"Inferred intention: {intention}")
+            yield {'type': 'steps', 'data': {'step': 'Understanding intent', 'explanation': 'Inferring user\'s intent'}}
+            intention = self.infer_user_intention(combined_input)
+            logging.info(f"Inferred intention: {intention}")
 
-        yield {'type': 'steps', 'data': {'step': 'Selecting strategy', 'explanation': 'Reasoning on the best response method'}}
-        strategy = self.select_strategy(intention, combined_input)
-        logging.info(f"Selected strategy: {strategy.strategy}")
-        yield {'type': 'strategy', 'data': STRATEGY_IDENTIFIER[strategy.strategy]}
+            yield {'type': 'steps', 'data': {'step': 'Selecting strategy', 'explanation': 'Reasoning on the best response method'}}
+            strategy = self.select_strategy(intention, combined_input)
+            logging.info(f"Selected strategy: {strategy.strategy}")
+            yield {'type': 'strategy', 'data': STRATEGY_IDENTIFIER[strategy.strategy]}
 
-        yield from self.execute_strategy_stream(strategy, intention, conversation_history, combined_input)
+            yield from self.execute_strategy_stream(strategy, intention, conversation_history, combined_input)
+        
+        except RetryError as e:
+            yield {'type': 'error', 'data': str(e)}
+            yield {'type': 'end'}
 
     def execute_strategy_stream(self, strategy, intention, conversation_history, combined_input):
         logging.info(f"Executing strategy: {strategy.strategy}")

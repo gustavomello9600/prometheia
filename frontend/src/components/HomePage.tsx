@@ -5,7 +5,7 @@ import { Session } from 'next-auth';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MessageSquare, Plus, Search, Settings, LogOut, Trash2 } from 'lucide-react';
+import { MessageSquare, Plus, Search, Settings, LogOut, Trash2, Loader2 } from 'lucide-react';
 import ChatInterface from '@/components/ChatInterface';
 import { useSession, signOut } from 'next-auth/react';
 import * as api from '@/lib/api';
@@ -22,6 +22,7 @@ interface Conversation {
   title: string;
   date: string;
   messages: Message[];
+  isDeleting?: boolean;
 }
 
 export default function HomePage() {
@@ -155,6 +156,13 @@ export default function HomePage() {
   };
 
   const deleteConversation = async (conversationId: number) => {
+    // Update the conversation to show it's being deleted
+    setConversations(prevConversations => 
+      prevConversations.map(conv => 
+        conv.id === conversationId ? { ...conv, isDeleting: true } : conv
+      )
+    );
+
     try {
       await api.deleteConversation(conversationId);
       setConversations(prevConversations => 
@@ -174,6 +182,12 @@ export default function HomePage() {
         description: "Failed to delete the conversation. Please try again.",
         variant: "destructive",
       });
+      // Reset the isDeleting state if there's an error
+      setConversations(prevConversations => 
+        prevConversations.map(conv => 
+          conv.id === conversationId ? { ...conv, isDeleting: false } : conv
+        )
+      );
     }
   };
 
@@ -254,8 +268,13 @@ export default function HomePage() {
                               deleteConversation(conv.id);
                             }}
                             className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity"
+                            disabled={conv.isDeleting}
                           >
-                            <Trash2 className="h-8 w-4 accent-foreground"/>
+                            {conv.isDeleting ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-muted-foreground" />
+                            )}
                           </button>
                         </button>
                       </li>

@@ -31,13 +31,9 @@ export const LogoAnimation = keyframes`
 `;
 
 export const FadingWrapper = styled.div<{ isVisible: boolean }>`
-  opacity: ${props => props.isVisible ? 1 : 0};
   max-height: ${props => props.isVisible ? '200px' : '0'};
   margin-bottom: ${props => props.isVisible ? '1rem' : '0'};
-  padding: ${props => props.isVisible ? '0.5rem' : '0'};
-  transition: opacity 1s ease-out, max-height 1s ease-out, margin-bottom 1s ease-out;
-  overflow: hidden;
-  pointer-events: ${props => props.isVisible ? 'auto' : 'none'};
+  transition: max-height 2s ease-out, margin-bottom 2s ease-out;
 `;
 
 export const RevealingText = styled.span<{ animationKey: string | number }>`
@@ -61,6 +57,8 @@ export const StepTimeline = styled.ul`
   align-items: flex-start;
   margin-top: 0.5rem;
   gap: 0.5rem;
+  overflow: hidden;
+  transition: height 0.3s ease-in-out;
 `;
 
 export const Step = styled.li<{ isActive: boolean; delay: number }>`

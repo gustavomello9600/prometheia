@@ -167,7 +167,15 @@ export function useChat(
     setMessages(prevMessages => {
       return prevMessages.map(msg => 
         msg.id === message.id 
-          ? { ...msg, isThinking: false, currentStep: '', currentExplanation: '' }
+          ? { ...msg, isThinking: false}
+          : msg
+      );
+    });
+    await new Promise(resolve => setTimeout(resolve, stepDisplayTime));
+    setMessages(prevMessages => {
+      return prevMessages.map(msg => 
+        msg.id === message.id 
+          ? { ...msg, currentStep: '', currentExplanation: '' }
           : msg
       );
     });
@@ -235,6 +243,8 @@ export function useChat(
         } else if (chunk.type === 'steps') {
           const newStep = chunk.data;
           accumulatedSteps.push(newStep);
+
+          shouldScrollRef.current = true;
           
           queueStep(newStep);
           

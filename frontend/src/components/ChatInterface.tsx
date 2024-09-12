@@ -8,7 +8,7 @@ import { ChatMessages } from '@/components/chat/ChatMessages';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { ChatInterfaceProps } from '@/types/chat';
 
-const STEP_DISPLAY_TIME = 5000;
+const STEP_DISPLAY_TIME = 2000;
 
 export default function ChatInterface({
   conversation,

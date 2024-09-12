@@ -80,13 +80,10 @@ export function MessageCard({
 
   return (
     <div className={`flex flex-col ${message.type === 'user' ? 'items-end' : 'items-start'}`}>
-      {message.isThinking && (
-        <ThinkingIndicator
+      <ThinkingIndicator
           isVisible={message.isThinking}
           currentStep={message.currentStep || ''}
-          currentExplanation={message.currentExplanation || ''}
-        />
-      )}
+          currentExplanation={message.currentExplanation || ''}/>
       <Card className={`max-w-[70%] p-3 bg-secondary text-secondary-foreground`}>
         {message.type === 'user' ? (
           <p className="text-base">{message.content}</p>
