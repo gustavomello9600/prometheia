@@ -11,10 +11,8 @@ interface ChatMessagesProps {
   toggleExplanation: (messageId: string, stepIndex: number) => void;
   activeMessageSteps: { [key: string]: number[] };
   initialRevealComplete: { [key: string]: boolean };
-  isThinkingTimeoutComplete: boolean;
-  isLastAIMessage: (messageId: string) => boolean;
   messagesEndRef: React.RefObject<HTMLDivElement>;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export function ChatMessages({
@@ -25,27 +23,24 @@ export function ChatMessages({
   toggleExplanation,
   activeMessageSteps,
   initialRevealComplete,
-  isThinkingTimeoutComplete,
-  isLastAIMessage,
   messagesEndRef,
-  children,
+  children
 }: ChatMessagesProps) {
   return (
-    <ScrollArea className="flex-1 p-4">
-      <div className="space-y-4">
+    <ScrollArea className="flex-1 h-full">
+      <div className="space-y-4 p-4">
         {messages.map((message, index) => (
-          <MessageCard
-            key={index}
-            message={message}
-            expandedSteps={expandedSteps}
-            toggleSteps={toggleSteps}
-            expandedExplanations={expandedExplanations}
-            toggleExplanation={toggleExplanation}
-            activeMessageSteps={activeMessageSteps}
-            initialRevealComplete={initialRevealComplete}
-            isThinkingTimeoutComplete={isThinkingTimeoutComplete}
-            isLastAIMessage={isLastAIMessage}
-          />
+          <React.Fragment key={index}>
+            <MessageCard
+              message={message}
+              expandedSteps={expandedSteps}
+              toggleSteps={toggleSteps}
+              expandedExplanations={expandedExplanations}
+              toggleExplanation={toggleExplanation}
+              activeMessageSteps={activeMessageSteps}
+              initialRevealComplete={initialRevealComplete}
+            />
+          </React.Fragment>
         ))}
         {children}
         <div ref={messagesEndRef} />

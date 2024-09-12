@@ -14,6 +14,7 @@ import {
   StepText,
   StepExplanation
 } from '@/styles/chatStyles';
+import { ThinkingIndicator } from '@/components/chat/ThinkingIndicator';
 
 interface MessageCardProps {
   message: Message;
@@ -23,8 +24,6 @@ interface MessageCardProps {
   toggleExplanation: (messageId: string, stepIndex: number) => void;
   activeMessageSteps: { [key: string]: number[] };
   initialRevealComplete: { [key: string]: boolean };
-  isThinkingTimeoutComplete: boolean;
-  isLastAIMessage: (messageId: string) => boolean;
 }
 
 export function MessageCard({
@@ -34,18 +33,16 @@ export function MessageCard({
   expandedExplanations,
   toggleExplanation,
   activeMessageSteps,
-  initialRevealComplete,
-  isThinkingTimeoutComplete,
-  isLastAIMessage
-}: MessageCardProps) {
+  initialRevealComplete
+}: MessageCardProps) {  
   const customRenderers: Components = {
-    h1: ({node, ...props}: {node: any, [key: string]: any}) => <h1 style={{fontSize: '2rem', margin: '20px 0', lineHeight: '1.2'}} {...props} />,
-    h2: ({node, ...props}: {node: any, [key: string]: any}) => <h2 style={{fontSize: '1.5rem', margin: '18px 0', lineHeight: '1.3'}} {...props} />,
-    h3: ({node, ...props}: {node: any, [key: string]: any}) => <h3 style={{fontSize: '1.375rem', margin: '16px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props} />,
-    h4: ({node, ...props}: {node: any, [key: string]: any}) => <h4 style={{fontSize: '1.125rem', margin: '14px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props} />,
-    h5: ({node, ...props}: {node: any, [key: string]: any}) => <h5 style={{fontSize: '1rem', margin: '12px 0', lineHeight: '1.4', fontWeight: 'bold'}} {...props} />,
-    h6: ({node, ...props}: {node: any, [key: string]: any}) => <h6 style={{fontSize: '0.875rem', margin: '10px 0', lineHeight: '1.4'}} {...props} />,
-    code: ({node, inline, className, children, ...props}: {node: any, inline: boolean, className: string, children: React.ReactNode, [key: string]: any}) => {
+    h1: ({children, ...props}) => <h1 style={{fontSize: '2rem', margin: '20px 0', lineHeight: '1.2'}} {...props}>{children}</h1>,
+    h2: ({children, ...props}) => <h2 style={{fontSize: '1.5rem', margin: '18px 0', lineHeight: '1.3'}} {...props}>{children}</h2>,
+    h3: ({children, ...props}) => <h3 style={{fontSize: '1.375rem', margin: '16px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props}>{children}</h3>,
+    h4: ({children, ...props}) => <h4 style={{fontSize: '1.125rem', margin: '14px 0', lineHeight: '1.3', fontWeight: 'bold'}} {...props}>{children}</h4>,
+    h5: ({children, ...props}) => <h5 style={{fontSize: '1rem', margin: '12px 0', lineHeight: '1.4', fontWeight: 'bold'}} {...props}>{children}</h5>,
+    h6: ({children, ...props}) => <h6 style={{fontSize: '0.875rem', margin: '10px 0', lineHeight: '1.4'}} {...props}>{children}</h6>,
+    code: ({inline, className, children, ...props}: {inline?: boolean, className?: string, children: React.ReactNode}) => {
       const match = /language-(\w+)/.exec(className || '')
       return !inline ? (
         <pre className="bg-gray-100 dark:bg-gray-800 p-4 rounded-md overflow-x-auto">
@@ -59,30 +56,37 @@ export function MessageCard({
         </code>
       )
     },
-    ul: ({node, ...props}: {node: any, [key: string]: any}) => (
+    ul: ({children, ...props}) => (
       <ul style={{
         paddingLeft: '1.5rem',
         marginBottom: '1rem',
         listStyleType: 'disc'
-      }} {...props} />
+      }} {...props}>{children}</ul>
     ),
-    li: ({node, ...props}: {node: any, [key: string]: any}) => (
+    li: ({children, ...props}) => (
       <li style={{
         marginBottom: '0.5rem'
-      }} {...props} />
+      }} {...props}>{children}</li>
     ),
-    ol: ({node, ...props}: {node: any, [key: string]: any}) => (
+    ol: ({children, ...props}) => (
       <ol style={{
         paddingLeft: '1.5rem',
         marginBottom: '1rem',
         listStyleType: 'decimal'
-      }} {...props} />
+      }} {...props}>{children}</ol>
     ),
-    p: ({node, ...props}: {node: any, [key: string]: any}) => <p style={{marginBottom: '1rem'}} {...props} />
+    p: ({children, ...props}) => <p style={{marginBottom: '1rem'}} {...props}>{children}</p>
   };
 
   return (
-    <div className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex flex-col ${message.type === 'user' ? 'items-end' : 'items-start'}`}>
+      {message.isThinking && (
+        <ThinkingIndicator
+          isVisible={message.isThinking}
+          currentStep={message.currentStep || ''}
+          currentExplanation={message.currentExplanation || ''}
+        />
+      )}
       <Card className={`max-w-[70%] p-3 bg-secondary text-secondary-foreground`}>
         {message.type === 'user' ? (
           <p className="text-base">{message.content}</p>
@@ -97,7 +101,7 @@ export function MessageCard({
             </ReactMarkdown>
             {message.steps && message.steps.length > 0 && (
               <>
-                <button onClick={() => toggleSteps(message.id)} className="mt-2 text-sm underline focus:outline-none">
+                <button onClick={() => toggleSteps(message.id)} className="text-sm underline focus:outline-none">
                   {expandedSteps[message.id] ? 'Hide steps' : 'Show steps'}
                 </button>
                 {expandedSteps[message.id] && (

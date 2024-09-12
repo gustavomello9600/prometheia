@@ -9,6 +9,11 @@ export interface Message {
   content: string;
   steps?: Step[];
   strategy?: string;
+  isThinking?: boolean;
+  ongoingQueueProcessing?: boolean;
+  receivedStopThinking?: boolean;
+  currentStep?: string;
+  currentExplanation?: string;
 }
 
 export interface Conversation {

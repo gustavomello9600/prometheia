@@ -1,13 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useChat } from '@/hooks/useChat';
-import { useThinking } from '@/hooks/useThinking';
 import { useMobile } from '@/hooks/useMobile';
 import { ChatHeader } from '@/components/chat/ChatHeader';
 import { ChatMessages } from '@/components/chat/ChatMessages';
 import { ChatInput } from '@/components/chat/ChatInput';
-import { ThinkingIndicator } from '@/components/chat/ThinkingIndicator';
 import { ChatInterfaceProps } from '@/types/chat';
 
 const STEP_DISPLAY_TIME = 5000;
@@ -24,25 +22,18 @@ export default function ChatInterface({
     input,
     setInput,
     handleSendMessage,
-    isProcessing,
     expandedSteps,
     toggleSteps,
     expandedExplanations,
     toggleExplanation,
     activeMessageSteps,
     initialRevealComplete,
-    isLastAIMessage,
-    messagesEndRef
+    messagesEndRef,
+    isProcessing
   } = useChat(conversation, setConversation, updateConversation, STEP_DISPLAY_TIME);
 
-  const {
-    isThinkingVisible,
-    isThinkingTimeoutComplete,
-    currentStep,
-    currentExplanation
-  } = useThinking(STEP_DISPLAY_TIME);
-
   const { isMobile } = useMobile();
+
 
   if (!conversation) {
     return (
@@ -61,24 +52,18 @@ export default function ChatInterface({
         isSidebarOpen={isSidebarOpen}
       />
 
-      <ChatMessages
-        messages={messages}
-        isLastAIMessage={isLastAIMessage}
-        messagesEndRef={messagesEndRef}
-        expandedSteps={expandedSteps}
-        toggleSteps={toggleSteps}
-        expandedExplanations={expandedExplanations}
-        toggleExplanation={toggleExplanation}
-        activeMessageSteps={activeMessageSteps}
-        initialRevealComplete={initialRevealComplete}
-        isThinkingTimeoutComplete={isThinkingTimeoutComplete}
-      >
-        <ThinkingIndicator
-          isVisible={isThinkingVisible}
-          currentStep={currentStep}
-          currentExplanation={currentExplanation}
+      <div className="flex-1 overflow-hidden relative">
+        <ChatMessages
+          messages={messages}
+          messagesEndRef={messagesEndRef}
+          expandedSteps={expandedSteps}
+          toggleSteps={toggleSteps}
+          expandedExplanations={expandedExplanations}
+          toggleExplanation={toggleExplanation}
+          activeMessageSteps={activeMessageSteps}
+          initialRevealComplete={initialRevealComplete}
         />
-      </ChatMessages>
+      </div>
 
       <ChatInput
         input={input}

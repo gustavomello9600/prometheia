@@ -18,17 +18,19 @@ export function useChat(
   const [initialRevealComplete, setInitialRevealComplete] = useState<{ [key: string]: boolean }>({});
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(conversation?.title || '');
-  const [isMessageComplete, setIsMessageComplete] = useState<boolean>(false);
-  const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
-  const [isThinkingTimeoutComplete, setIsThinkingTimeoutComplete] = useState(true);
-  const [isThinkingVisible, setIsThinkingVisible] = useState(false);
-  const [currentStep, setCurrentStep] = useState<string>('');
-  const [currentExplanation, setCurrentExplanation] = useState<string>('');
+
   const { toast } = useToast();
 
-  const stepQueueRef = useRef<QueuedStep[]>([]);
-  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const stepQueueRef = useRef<QueuedStep[]>([]);
+  const userMessageTimestampRef = useRef<number | null>(null);
+  const shouldScrollRef = useRef(false);
+
+  const getFormattedTimestamp = () => {
+    if (!userMessageTimestampRef.current) return '00000ms';
+    const elapsed = Date.now() - userMessageTimestampRef.current;
+    return elapsed.toString().padStart(5, '0') + 'ms';
+  };
 
   useEffect(() => {
     if (conversation) {
@@ -43,6 +45,7 @@ export function useChat(
             return acc;
           }, {});
           setExpandedSteps(initialExpandedSteps);
+          shouldScrollRef.current = true; // Set to true when conversation is first loaded
         } catch (error) {
           console.error('Error fetching messages:', error);
         }
@@ -53,7 +56,10 @@ export function useChat(
   }, [conversation]);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (shouldScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      shouldScrollRef.current = false;
+    }
   }, []);
 
   useEffect(() => {
@@ -73,87 +79,124 @@ export function useChat(
   }, [conversation, editedTitle, updateConversation]);
 
   const processStepQueue = useCallback(() => {
-    if (stepQueueRef.current.length === 0) {
-      return;
-    }
-  
+    if (stepQueueRef.current.length === 0) return;
+    console.log(`[${getFormattedTimestamp()}] Processing step queue`);
+    console.log(`[${getFormattedTimestamp()}] Queue before remove: ${JSON.stringify(stepQueueRef.current)}`);
     const step = stepQueueRef.current.shift()!;
-    setCurrentStep(step.step);
-    setCurrentExplanation(step.explanation);
-  
-    processingTimeoutRef.current = setTimeout(() => {
-      if (stepQueueRef.current.length > 0) {
-        processStepQueue();
+    console.log(`[${getFormattedTimestamp()}] Queue after remove: ${JSON.stringify(stepQueueRef.current)}`);
+    
+    setMessages(prevMessages => {
+      const updatedMessages = [...prevMessages];
+      const thinkingMessageIndex = updatedMessages.findIndex(msg => msg.isThinking);
+      if (thinkingMessageIndex !== -1) {
+        updatedMessages[thinkingMessageIndex] = {
+          ...updatedMessages[thinkingMessageIndex],
+          currentStep: step.step,
+          currentExplanation: step.explanation,
+        };
       }
-    }, stepDisplayTime);
-  }, [stepDisplayTime]);
+      return updatedMessages;
+    });
+  }, []);
 
   const queueStep = useCallback((step: QueuedStep) => {
+    console.log(`[${getFormattedTimestamp()}] Step received`);
+    console.log(`[${getFormattedTimestamp()}] Queue before add: ${JSON.stringify(stepQueueRef.current)}`);
     stepQueueRef.current.push(step);
-    if (stepQueueRef.current.length === 1 && !processingTimeoutRef.current) {
-      processStepQueue();
-    }
-  }, [processStepQueue]);
+    console.log(`[${getFormattedTimestamp()}] Queue after add: ${JSON.stringify(stepQueueRef.current)}`);
+  }, []);
 
-  const startThinking = useCallback(() => {
-    setIsThinkingTimeoutComplete(false);
-    setCurrentStep('');
-    setCurrentExplanation('');
-    stepQueueRef.current = [];
-    if (processingTimeoutRef.current) {
-      clearTimeout(processingTimeoutRef.current);
-    }
-    setIsThinkingVisible(true);
-    processStepQueue();
-  }, [processStepQueue]);
+  const startThinking = useCallback(async (message: Message) => {
+    console.log(`[${getFormattedTimestamp()}] Started thinking`);
 
-  const stopThinking = useCallback(() => {
-    const processRemainingSteps = () => {
-      if (stepQueueRef.current.length > 0) {
-        processStepQueue();
-        setTimeout(processRemainingSteps, stepDisplayTime);
-      } else {
-        setIsThinkingVisible(false);
-        setTimeout(() => {
-          setIsThinkingTimeoutComplete(true);
-          setCurrentStep('');
-          setCurrentExplanation('');
-          if (processingTimeoutRef.current) {
-            clearTimeout(processingTimeoutRef.current);
-          }
-        }, 1000);
+    const processNextStep = async () => {
+      console.log(`[${getFormattedTimestamp()}] Entered thinking loop`);
+      while (true) {
+        console.log(`[${getFormattedTimestamp()}] Thinking message:`, message);
+        
+        console.log(`[${getFormattedTimestamp()}] Message receivedStopThinking:`, message.receivedStopThinking);
+        if (message.receivedStopThinking) {
+          console.log(`[${getFormattedTimestamp()}] Exiting processing loop`);
+          break;
+        }
+
+        if (stepQueueRef.current.length > 0 && !message.ongoingQueueProcessing) {
+          message.ongoingQueueProcessing = true;
+          
+          processStepQueue();
+          await new Promise(resolve => setTimeout(resolve, stepDisplayTime));
+          
+          message.ongoingQueueProcessing = false;
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      console.log(`[${getFormattedTimestamp()}] Exited thinking loop`);
+    };
+
+    // Start the processing loop and wait for the first iteration to complete
+    await new Promise<void>(resolve => {
+      setTimeout(() => {
+        processNextStep();
+        resolve();
+      }, 0);
+    });
+  }, [messages, processStepQueue, stepDisplayTime]);
+
+  const stopThinking = useCallback(async (message: Message) => {
+    console.log(`[${getFormattedTimestamp()}] Signaled stop`);
+    message.receivedStopThinking = true;
+
+    console.log(`[${getFormattedTimestamp()}] Step queue before stop: ${JSON.stringify(stepQueueRef.current)}`);
+    console.log(`[${getFormattedTimestamp()}] Processing remaining steps`);
+    const processRemainingSteps = async () => {
+      while (stepQueueRef.current.length > 0) {
+        if (message.ongoingQueueProcessing) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } else {
+          message.ongoingQueueProcessing = true;
+          processStepQueue();
+          await new Promise(resolve => setTimeout(resolve, stepDisplayTime));
+          message.ongoingQueueProcessing = false;
+        }
       }
     };
 
-    processRemainingSteps();
-  }, [processStepQueue, stepDisplayTime]);
+    await processRemainingSteps();
 
-  const isLastAIMessage = useCallback((messageId: string) => {
-    const aiMessages = messages.filter(m => m.type === 'ai');
-    return aiMessages.length > 0 && aiMessages[aiMessages.length - 1].id === messageId;
-  }, [messages]);
+    setMessages(prevMessages => {
+      return prevMessages.map(msg => 
+        msg.id === message.id 
+          ? { ...msg, isThinking: false, currentStep: '', currentExplanation: '' }
+          : msg
+      );
+    });
+
+    console.log(`[${getFormattedTimestamp()}] Actual stop`);
+  }, [processStepQueue, stepDisplayTime]);
 
   const handleSendMessage = useCallback(async () => {
     if (input.trim() === '' || !conversation || isProcessing) return;
-  
+
     setIsProcessing(true);
-    setIsMessageComplete(false);
-    setIsThinkingTimeoutComplete(false);
-    setIsThinkingVisible(true);
-    setCurrentStep('');
-    setCurrentExplanation('');
-    stepQueueRef.current = [];
-    if (processingTimeoutRef.current) {
-      clearTimeout(processingTimeoutRef.current);
-    }
-    startThinking();
+    userMessageTimestampRef.current = Date.now();
   
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: input };
     setMessages(prevMessages => [...prevMessages, userMessage]);
     setInput('');
+    shouldScrollRef.current = true; // Set to true when a new user message is added
   
-    const aiMessage: Message = { id: (Date.now() + 1).toString(), type: 'ai', content: '', steps: [] };
-    setProcessingMessageId(aiMessage.id);
+    const aiMessage: Message = { 
+      id: (Date.now() + 1).toString(), 
+      type: 'ai', 
+      content: '', 
+      steps: [],
+      isThinking: false,
+      ongoingQueueProcessing: false,
+      receivedStopThinking: false,
+      currentStep: '',
+      currentExplanation: '',
+    };
   
     let accumulatedContent = '';
     let accumulatedSteps: Step[] = [];
@@ -195,17 +238,16 @@ export function useChat(
           
           queueStep(newStep);
           
-          setMessages(prevMessages => {
-            const updatedMessages = [...prevMessages];
-            const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
-            if (aiMessageIndex !== -1) {
-              updatedMessages[aiMessageIndex] = {
-                ...updatedMessages[aiMessageIndex],
-                steps: accumulatedSteps,
-              };
-            }
-            return updatedMessages;
-          });
+          if (!aiMessage.isThinking) {
+            aiMessage.isThinking = true;
+            aiMessage.currentStep = '';
+            aiMessage.currentExplanation = '';
+            aiMessage.receivedStopThinking = false;
+            aiMessage.ongoingQueueProcessing = false;
+            startThinking(aiMessage);
+          }
+
+          aiMessage.steps = accumulatedSteps;
   
         } else if (chunk.type === 'strategy') {
           accumulatedStrategy = chunk.data;
@@ -229,7 +271,7 @@ export function useChat(
           });
         } else if (chunk.type === 'end') {
           isStreamComplete = true;
-          stopThinking();
+          stopThinking(aiMessage);
           saveAIMessage({
             ...aiMessage,
             content: accumulatedContent,
@@ -240,22 +282,14 @@ export function useChat(
       });
 
     } catch (error) {
-      setIsProcessing(false);
-      setProcessingMessageId(null);
-      stopThinking();
       console.error('Error in handleSendMessage:', error);
       toast({
         title: "Error",
         description: "An error occurred while processing your message. Please try again.",
         variant: "destructive",
       });
-  
     } finally {
-      setTimeout(() => {
-        setProcessingMessageId(null);
-        setIsMessageComplete(true);
-        setIsProcessing(false);
-      }, stepDisplayTime);
+      setIsProcessing(false);
     }
   }, [conversation, messages, input, isProcessing, startThinking, stopThinking, queueStep, toast, stepDisplayTime]);
 
@@ -339,12 +373,17 @@ export function useChat(
     }));
   }, []);
 
+  const sendMessage = useCallback(async (message: string) => {
+    // Set the timestamp when the user sends a message
+    userMessageTimestampRef.current = Date.now();
+    // ... rest of the sendMessage function ...
+  }, [/* existing dependencies */]);
+
   return {
     messages,
     input,
     setInput,
     handleSendMessage,
-    isProcessing,
     expandedSteps,
     toggleSteps,
     expandedExplanations,
@@ -356,13 +395,7 @@ export function useChat(
     editedTitle,
     setEditedTitle,
     handleTitleUpdate,
-    isMessageComplete,
-    processingMessageId,
-    isThinkingTimeoutComplete,
-    isThinkingVisible,
-    currentStep,
-    currentExplanation,
-    isLastAIMessage,
     messagesEndRef,
+    isProcessing
   };
 }

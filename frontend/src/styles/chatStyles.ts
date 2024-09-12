@@ -1,4 +1,4 @@
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 
 export const inflateAnimation = keyframes`
   from { transform: scale(0); }
@@ -34,8 +34,10 @@ export const FadingWrapper = styled.div<{ isVisible: boolean }>`
   opacity: ${props => props.isVisible ? 1 : 0};
   max-height: ${props => props.isVisible ? '200px' : '0'};
   margin-bottom: ${props => props.isVisible ? '1rem' : '0'};
+  padding: ${props => props.isVisible ? '0.5rem' : '0'};
   transition: opacity 1s ease-out, max-height 1s ease-out, margin-bottom 1s ease-out;
   overflow: hidden;
+  pointer-events: ${props => props.isVisible ? 'auto' : 'none'};
 `;
 
 export const RevealingText = styled.span<{ animationKey: string | number }>`
@@ -131,7 +133,7 @@ export const StepExplanation = styled.p<{ isVisible: boolean; delay: number }>`
   transition: opacity 0.3s ease-in-out, max-height 0.3s ease-in-out;
   overflow: hidden;
 
-  ${props => props.isVisible && `
+  ${props => props.isVisible && css`
     animation: ${fadeInAnimation} 0.3s ease-in-out forwards;
   `}
 `;
