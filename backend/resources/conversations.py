@@ -56,13 +56,14 @@ def get_messages(conversation_id):
     if conversation.data[0]['user_id'] != user_id:
         return jsonify({'message': 'Unauthorized'}), 401
 
-    messages = supabase.table('message').select('*').eq('conversation_id', conversation_id).order('timestamp').execute()
+    messages = supabase.table('message_with_strategy').select('*').eq('conversation_id', conversation_id).order('timestamp').execute()
     return jsonify([{
         'id': msg['id'],
         'type': msg['type'],
         'content': msg['content'],
         'timestamp': msg['timestamp'],
-        'steps': msg['steps']
+        'steps': msg['steps'],
+        'strategy': msg['strategy']
     } for msg in messages.data]), 200
 
 @conversations_bp.route('/<int:conversation_id>/messages', methods=['POST', 'OPTIONS'])
@@ -80,7 +81,7 @@ def add_message(conversation_id):
 
     try:
         # Fetch the current maximum ID
-        max_id_result = supabase.table('message').select('id').order('id', desc=True).limit(1).execute()
+        max_id_result = supabase.table('message_with_strategy').select('id').order('id', desc=True).limit(1).execute()
         next_id = 1 if not max_id_result.data else max_id_result.data[0]['id'] + 1
 
         new_message = {
@@ -89,11 +90,12 @@ def add_message(conversation_id):
             'type': data['type'],
             'content': data['content'],
             'timestamp': datetime.now().isoformat(),
-            'steps': data.get('steps')
+            'steps': data.get('steps'),
+            'strategy': data.get('strategy')
         }
 
         # Insert the new message with the explicit ID
-        result = supabase.table('message').insert(new_message).execute()
+        result = supabase.table('message_with_strategy').insert(new_message).execute()
         inserted_message = result.data[0]
 
         return jsonify({
@@ -151,7 +153,7 @@ def delete_conversation(conversation_id):
         return jsonify({'message': 'Unauthorized'}), 401
 
     # Delete associated messages first
-    supabase.table('message').delete().eq('conversation_id', conversation_id).execute()
+    supabase.table('message_with_strategy').delete().eq('conversation_id', conversation_id).execute()
 
     # Now delete the conversation
     supabase.table('conversation').delete().eq('id', conversation_id).execute()

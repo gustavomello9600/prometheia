@@ -17,6 +17,14 @@ from prompts import PROMPTS
 from llm_models import QuickLLM, SmarterLLM, FunctionCallingLLM
 
 
+STRATEGY_IDENTIFIER = {
+    1: "Direct Response",
+    2: "Multi-Step Reasoning",
+    3: "Action Plan",
+    4: "Multi-Agent Workflow"
+}
+
+
 groq_retry = retry(
     retry=retry_if_exception_type(GroqInternalServerError),
     wait=wait_exponential(multiplier=2, min=4, max=10),
@@ -63,16 +71,20 @@ class LLMInteraction:
 
         last_message = messages[-1].split('\n', 1)[1]  # Get the content of the last message
 
+        yield {'type': 'steps', 'data': {'step': 'Understanding context', 'explanation': 'Interpreting conversation history'}}
         relevant_points = self.digest_conversation_history(conversation_history)
         logging.info(f"Relevant points from conversation history: {relevant_points}")
 
         combined_input = f"{last_message}\n\nRelevant points from previous conversation:\n{relevant_points}"
 
+        yield {'type': 'steps', 'data': {'step': 'Understanding intent', 'explanation': 'Inferring user\'s intent'}}
         intention = self.infer_user_intention(combined_input)
         logging.info(f"Inferred intention: {intention}")
 
+        yield {'type': 'steps', 'data': {'step': 'Selecting strategy', 'explanation': 'Reasoning on the best response method'}}
         strategy = self.select_strategy(intention, combined_input)
         logging.info(f"Selected strategy: {strategy.strategy}")
+        yield {'type': 'strategy', 'data': STRATEGY_IDENTIFIER[strategy.strategy]}
 
         yield from self.execute_strategy_stream(strategy, intention, conversation_history, combined_input)
 
@@ -135,8 +147,8 @@ class LLMInteraction:
                                                                      .format_messages(conversation_history=conversation_history,
                                                                                       combined_input=combined_input)))
             
-            # Yield steps as a single chunk
-            yield {"type": "steps", "data": [step.dict() for step in steps_data.steps]}
+            for step in steps_data.steps:
+                yield {"type": "steps", "data": step.dict()}
 
             message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
             for chunk in (message_prompt | self.smarter_llm).stream({

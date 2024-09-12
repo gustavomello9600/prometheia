@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled, { keyframes, css } from 'styled-components';
 import { Avatar } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -12,6 +12,9 @@ import { createMessage, getMessages, getLLMResponseStream, updateConversationTit
 import ReactMarkdown, { Components } from 'react-markdown';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+
+const STEP_DISPLAY_TIME = 5000;
 
 interface Step {
   step: string;
@@ -23,6 +26,7 @@ interface Message {
   type: 'user' | 'ai';
   content: string;
   steps?: Step[];
+  strategy?: string;
 }
 
 interface Conversation {
@@ -45,19 +49,52 @@ const inflateAnimation = keyframes`
   to { transform: scale(1); }
 `;
 
-const textRevealAnimation = keyframes`
-  from { clip-path: inset(0 100% 0 0); }
-  to { clip-path: inset(0 0 0 0); }
-`;
-
 const extendLineAnimation = keyframes`
   from { height: 0; }
   to { height: 100%; }
 `;
 
+const fadeOutAnimation = keyframes`
+  from { opacity: 1; max-height: 200px; margin-bottom: 1rem; }
+  to { opacity: 0; max-height: 0; margin-bottom: 0; }
+`;
+
 const fadeInAnimation = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 200px; }
+`;
+
+const FadingWrapper = styled.div<{ isVisible: boolean }>`
+  opacity: ${props => props.isVisible ? 1 : 0};
+  max-height: ${props => props.isVisible ? '200px' : '0'};
+  margin-bottom: ${props => props.isVisible ? '1rem' : '0'};
+  transition: opacity 1s ease-out, max-height 1s ease-out, margin-bottom 1s ease-out;
+  overflow: hidden;
+`;
+
+const stepRevealAnimation = keyframes`
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+`;
+
+const RevealingText = styled.span<{ animationKey: string | number }>`
+  display: inline-block;
+  animation: ${stepRevealAnimation} 0.5s ease-in-out forwards;
+  animation-play-state: ${props => props.animationKey ? 'running' : 'paused'};
+`;
+
+const LogoAnimation = keyframes`
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+`;
+
+const AnimatedLogo = styled.span`
+  font-weight: bold;
+  font-size: 24px;
+  animation: ${LogoAnimation} 2s infinite;
+  display: inline-block;
+  min-width: 30px;
+  text-align: center;
 `;
 
 const StepTimeline = styled.ul`
@@ -84,7 +121,7 @@ const StepText = styled.span<{ isActive: boolean; delay: number }>`
   position: relative;
   display: inline-block;
   clip-path: inset(0 100% 0 0);
-  animation: ${textRevealAnimation} 0.5s ease-in forwards;
+  animation: ${stepRevealAnimation} 0.75s ease-in-out forwards;
   animation-delay: ${props => props.delay + 250}ms;
 `;
 
@@ -128,56 +165,25 @@ const StepHeader = styled.div`
   cursor: pointer;
 `;
 
-const StepExplanation = styled.p<{ delay: number; isInitialReveal: boolean }>`
+const StepExplanation = styled.p<{ isVisible: boolean; delay: number }>`
   margin-top: 0.5rem;
   margin-left: 1.5rem;
   font-size: 0.8rem;
   color: var(--muted-foreground);
-  opacity: 0;
-  animation: ${fadeInAnimation} 0.5s ease-in forwards;
-  animation-delay: ${props => props.isInitialReveal ? props.delay + 1000 : 0}ms;
+  opacity: ${props => props.isVisible ? 1 : 0};
+  max-height: ${props => props.isVisible ? '200px' : '0'};
+  transition: opacity 0.3s ease-in-out, max-height 0.3s ease-in-out;
+  overflow: hidden;
+
+  ${props => props.isVisible && css`
+    animation: ${fadeInAnimation} 0.3s ease-in-out forwards;
+  `}
 `;
 
-const TypingIndicator = styled.div`
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  background: hsl(var(--secondary));
-  border-radius: 20px;
-  width: fit-content;
-`;
-
-const Logo = styled.span`
-  font-weight: bold;
-  font-size: 14px;
-  margin-right: 8px;
-`;
-
-const Dot = styled.span`
-  width: 6px;
-  height: 6px;
-  background: hsl(var(--primary));
-  border-radius: 50%;
-  margin: 0 2px;
-  animation: bounce 1.3s linear infinite;
-
-  &:nth-child(2) {
-    animation-delay: -1.1s;
-  }
-
-  &:nth-child(3) {
-    animation-delay: -0.9s;
-  }
-
-  @keyframes bounce {
-    0%, 60%, 100% {
-      transform: translateY(0);
-    }
-    30% {
-      transform: translateY(-3px);
-    }
-  }
-`;
+interface QueuedStep {
+  step: string;
+  explanation: string;
+}
 
 export default function ChatInterface({ conversation, setConversation, updateConversation, toggleSidebar, isSidebarOpen }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
@@ -190,8 +196,16 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   const [expandedExplanations, setExpandedExplanations] = useState<{ [key: string]: boolean }>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [initialRevealComplete, setInitialRevealComplete] = useState<{ [key: string]: boolean }>({});
-  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
   const { toast } = useToast();
+  const [currentStep, setCurrentStep] = useState<string>('');
+  const [currentExplanation, setCurrentExplanation] = useState<string>('');
+  const [isMessageComplete, setIsMessageComplete] = useState<boolean>(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMessageId, setProcessingMessageId] = useState<string | null>(null);
+  const stepQueueRef = useRef<QueuedStep[]>([]);
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isThinkingTimeoutComplete, setIsThinkingTimeoutComplete] = useState(true);
+  const [isThinkingVisible, setIsThinkingVisible] = useState(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -203,7 +217,7 @@ export default function ChatInterface({ conversation, setConversation, updateCon
 
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth <= 768); // Adjust this breakpoint as needed
+      setIsMobile(window.innerWidth <= 768);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -244,16 +258,97 @@ export default function ChatInterface({ conversation, setConversation, updateCon
     }
   }, [conversation]);
   
+  const processStepQueue = useCallback(() => {
+    if (stepQueueRef.current.length === 0) {
+      return;
+    }
+  
+    const step = stepQueueRef.current.shift()!;
+    setCurrentStep(step.step);
+    setCurrentExplanation(step.explanation);
+  
+    // Schedule the next step processing
+    processingTimeoutRef.current = setTimeout(() => {
+      if (stepQueueRef.current.length > 0) {
+        processStepQueue();
+      }
+    }, STEP_DISPLAY_TIME);
+  }, []);
+
+  const queueStep = useCallback((step: QueuedStep) => {
+    stepQueueRef.current.push(step);
+    if (stepQueueRef.current.length === 1 && !processingTimeoutRef.current) {
+      processStepQueue();
+    }
+  }, [processStepQueue]);
+
+  const startThinking = useCallback(() => {
+    setIsThinkingTimeoutComplete(false);
+    setCurrentStep('');
+    setCurrentExplanation('');
+    stepQueueRef.current = [];
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+    }
+    setIsThinkingVisible(true);
+    processStepQueue();
+  }, [processStepQueue]);
+
+  const stopThinking = useCallback(() => {
+    const processRemainingSteps = () => {
+      if (stepQueueRef.current.length > 0) {
+        processStepQueue();
+        setTimeout(processRemainingSteps, STEP_DISPLAY_TIME);
+      } else {
+        // Queue is empty, start fading out
+        setIsThinkingVisible(false);
+        // Wait for fade-out transition before completing
+        setTimeout(() => {
+          setIsThinkingTimeoutComplete(true);
+          setCurrentStep('');
+          setCurrentExplanation('');
+          if (processingTimeoutRef.current) {
+            clearTimeout(processingTimeoutRef.current);
+          }
+        }, 1000); // Match this with the transition duration in FadingContent
+      }
+    };
+
+    // Start processing remaining steps
+    processRemainingSteps();
+  }, [processStepQueue]);
+
+  const isLastAIMessage = useCallback((messageId: string) => {
+    const aiMessages = messages.filter(m => m.type === 'ai');
+    return aiMessages.length > 0 && aiMessages[aiMessages.length - 1].id === messageId;
+  }, [messages]);
+
   const handleSendMessage = async () => {
-    if (input.trim() === '' || !conversation) return;
+    if (input.trim() === '' || !conversation || isProcessing) return;
+  
+    setIsProcessing(true);
+    setIsMessageComplete(false);
+    setIsThinkingTimeoutComplete(false);
+    setIsThinkingVisible(true);
+    setCurrentStep('');
+    setCurrentExplanation('');
+    stepQueueRef.current = [];
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+    }
+    startThinking();
   
     const userMessage: Message = { id: Date.now().toString(), type: 'user', content: input };
     setMessages(prevMessages => [...prevMessages, userMessage]);
     setInput('');
-    setIsWaitingForResponse(true);
+  
+    const aiMessage: Message = { id: (Date.now() + 1).toString(), type: 'ai', content: '', steps: [] };
+    setProcessingMessageId(aiMessage.id);
   
     let accumulatedContent = '';
-    const aiMessage: Message = { id: (Date.now() + 1).toString(), type: 'ai', content: '', steps: [] };
+    let accumulatedSteps: Step[] = [];
+    let accumulatedStrategy = '';
+    let isStreamComplete = false;
   
     try {
       await createMessage(conversation.id, userMessage);
@@ -266,10 +361,8 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   
       const streamHandler = await getLLMResponseStream(conversationHistory, conversation.id);
   
-      let isStreamClosed = false;
-  
       const closeStream = streamHandler((chunk) => {
-        if (isStreamClosed) return;
+        if (isStreamComplete) return;
   
         if (chunk.type === 'content') {
           accumulatedContent += chunk.data;
@@ -278,21 +371,45 @@ export default function ChatInterface({ conversation, setConversation, updateCon
             const updatedMessages = [...prevMessages];
             const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
             if (aiMessageIndex !== -1) {
-              updatedMessages[aiMessageIndex].content = accumulatedContent;
+              updatedMessages[aiMessageIndex] = {
+                ...updatedMessages[aiMessageIndex],
+                content: accumulatedContent,
+              };
             }
             return updatedMessages;
           });
   
         } else if (chunk.type === 'steps') {
+          const newStep = chunk.data;
+          accumulatedSteps.push(newStep);
+          
+          queueStep(newStep);
+          
           setMessages(prevMessages => {
             const updatedMessages = [...prevMessages];
             const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
             if (aiMessageIndex !== -1) {
-              updatedMessages[aiMessageIndex].steps = chunk.data;
+              updatedMessages[aiMessageIndex] = {
+                ...updatedMessages[aiMessageIndex],
+                steps: accumulatedSteps,
+              };
             }
             return updatedMessages;
           });
   
+        } else if (chunk.type === 'strategy') {
+          accumulatedStrategy = chunk.data;
+          setMessages(prevMessages => {
+            const updatedMessages = [...prevMessages];
+            const aiMessageIndex = updatedMessages.findIndex(msg => msg.id === aiMessage.id);
+            if (aiMessageIndex !== -1) {
+              updatedMessages[aiMessageIndex] = {
+                ...updatedMessages[aiMessageIndex],
+                strategy: accumulatedStrategy,
+              };
+            }
+            return updatedMessages;
+          });
         } else if (chunk.type === 'error') {
           console.error('Error from server:', chunk.data);
           toast({
@@ -301,16 +418,21 @@ export default function ChatInterface({ conversation, setConversation, updateCon
             variant: "destructive",
           });
         } else if (chunk.type === 'end') {
-          if (!isStreamClosed) {
-            console.log('Stream ended.');
-            isStreamClosed = true;
-            // Save the AI message to the database after the stream ends
-            saveAIMessage(aiMessage.id, accumulatedContent, aiMessage.steps);
-          }
+          isStreamComplete = true;
+          stopThinking();
+          saveAIMessage({
+            ...aiMessage,
+            content: accumulatedContent,
+            steps: accumulatedSteps,
+            strategy: accumulatedStrategy,
+          });
         }
       });
 
     } catch (error) {
+      setIsProcessing(false);
+      setProcessingMessageId(null);
+      stopThinking();
       console.error('Error in handleSendMessage:', error);
       toast({
         title: "Error",
@@ -319,23 +441,19 @@ export default function ChatInterface({ conversation, setConversation, updateCon
       });
   
     } finally {
-      setIsWaitingForResponse(false);
+      setTimeout(() => {
+        setProcessingMessageId(null);
+        setIsMessageComplete(true);
+        setIsProcessing(false);
+      }, STEP_DISPLAY_TIME);
     }
   };
 
-  // Updated function to save the AI message
-  const saveAIMessage = async (id: string, content: string, steps: { step: string; explanation: string }[] | undefined) => {
+  const saveAIMessage = async (msg: Message) => {
     if (!conversation) return;
-
+  
     try {
-      const aiMessageToSave: Message = {
-        id: id,
-        type: 'ai',
-        content: content,
-        steps: steps
-      };
-
-      await createMessage(conversation.id, aiMessageToSave);
+      await createMessage(conversation.id, msg);
       console.log('AI message saved successfully.');
     } catch (error) {
       console.error('Error saving AI message:', error);
@@ -351,20 +469,17 @@ export default function ChatInterface({ conversation, setConversation, updateCon
     setExpandedSteps(prev => {
       const newExpandedState = !prev[messageId];
       
-      // If we're hiding the steps, reset the initialRevealComplete state for this message
       if (!newExpandedState) {
         setInitialRevealComplete(prevRevealState => ({
           ...prevRevealState,
           [messageId]: false
         }));
         
-        // Also reset the activeMessageSteps for this message
         setActiveMessageSteps(prevActiveSteps => ({
           ...prevActiveSteps,
           [messageId]: []
         }));
         
-        // Reset expanded explanations for this message
         setExpandedExplanations(prevExpandedExplanations => {
           const newExpandedExplanations = { ...prevExpandedExplanations };
           Object.keys(newExpandedExplanations).forEach(key => {
@@ -382,7 +497,6 @@ export default function ChatInterface({ conversation, setConversation, updateCon
       };
     });
 
-    // If we're expanding the steps and they weren't expanded before, start the animation
     if (!expandedSteps[messageId]) {
       animateSteps(messageId);
     }
@@ -459,6 +573,30 @@ export default function ChatInterface({ conversation, setConversation, updateCon
   };
   
 
+  const ThinkingIndicator: React.FC = () => {
+    return (
+      <FadingWrapper isVisible={isThinkingVisible}>
+          <div className="mb-2">
+            <div className="flex items-center space-x-2">
+              <AnimatedLogo className="text-accent-foreground">iΛ.</AnimatedLogo>
+              <h3 className="text-lg font-semibold">
+                <RevealingText animationKey={currentStep}>
+                  {currentStep || 'Thinking...'}
+                </RevealingText>
+              </h3>
+            </div>
+            {currentExplanation && (
+              <p className="text-sm text-muted-foreground mt-1">
+                <RevealingText animationKey={currentExplanation}>
+                  {currentExplanation}
+                </RevealingText>
+              </p>
+            )}
+          </div>
+      </FadingWrapper>
+    );
+  };
+
   if (!conversation) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -506,66 +644,62 @@ export default function ChatInterface({ conversation, setConversation, updateCon
                 {message.type === 'user' ? (
                   <p className="text-base">{message.content}</p>
                 ) : (
-                  <ReactMarkdown 
-                    className="text-base prose dark:prose-invert max-w-none"
-                    components={customRenderers as Components}
-                  >
-                    {message.content}
-                  </ReactMarkdown>
-                )}
-                {message.type === 'ai' && message.steps && message.steps.length > 0 && (
                   <>
-                    <button onClick={() => toggleSteps(message.id)} className="mt-2 text-sm underline focus:outline-none">
-                      {expandedSteps[message.id] ? 'Hide steps' : 'Show steps'}
-                    </button>
-                    {expandedSteps[message.id] && (
-                      <StepTimeline>
-                        {message.steps.map((step, stepIndex) => {
-                          const isActive = activeMessageSteps[message.id]?.includes(stepIndex);
-                          const delay = stepIndex * 500;
-                          return (
-                            <Step key={stepIndex} isActive={isActive} delay={delay}>
-                              <Bullet isActive={isActive} delay={delay} />
-                              {message.steps && stepIndex < message.steps.length - 1 && <Line isActive={isActive} delay={delay} />}
-                              <StepContent>
-                                <StepHeader onClick={() => toggleExplanation(message.id, stepIndex)}>
-                                  <StepText isActive={isActive} delay={delay}>{step.step}</StepText>
-                                  {expandedExplanations[`${message.id}-${stepIndex}`] ? (
-                                    <ChevronUp size={16} className="ml-2" />
-                                  ) : (
-                                    <ChevronDown size={16} className="ml-2" />
-                                  )}
-                                </StepHeader>
-                                {expandedExplanations[`${message.id}-${stepIndex}`] && (
-                                  <StepExplanation 
-                                    delay={delay} 
-                                    isInitialReveal={!initialRevealComplete[message.id]}
-                                  >
-                                    {step.explanation}
-                                  </StepExplanation>
-                                )}
-                              </StepContent>
-                            </Step>
-                          );
-                        })}
-                      </StepTimeline>
+                    {!isThinkingTimeoutComplete && isLastAIMessage(message.id) && (
+                      <ThinkingIndicator />
+                    )}
+                    {message.strategy && <Badge variant="default" className="mb-2 text-xs px-2 py-0.5">{message.strategy}</Badge>}
+                    <ReactMarkdown 
+                      className="text-base prose dark:prose-invert max-w-none"
+                      components={customRenderers as Components}
+                    >
+                      {message.content}
+                    </ReactMarkdown>
+                    {message.steps && message.steps.length > 0 && (
+                      <>
+                        <button onClick={() => toggleSteps(message.id)} className="mt-2 text-sm underline focus:outline-none">
+                          {expandedSteps[message.id] ? 'Hide steps' : 'Show steps'}
+                        </button>
+                        {expandedSteps[message.id] && (
+                          <StepTimeline>
+                            {message.steps.map((step, stepIndex) => {
+                              const isActive = activeMessageSteps[message.id]?.includes(stepIndex);
+                              const delay = stepIndex * 500;
+                              return (
+                                <Step key={`${message.id}-${stepIndex}`} isActive={isActive} delay={delay}>
+                                  <Bullet isActive={isActive} delay={delay} />
+                                  {stepIndex < message.steps.length - 1 && <Line isActive={isActive} delay={delay} />}
+                                  <StepContent>
+                                    <StepHeader onClick={() => toggleExplanation(message.id, stepIndex)}>
+                                      <StepText isActive={isActive} delay={delay}>{step.step}</StepText>
+                                      {expandedExplanations[`${message.id}-${stepIndex}`] ? (
+                                        <ChevronUp size={16} className="ml-2" />
+                                      ) : (
+                                        <ChevronDown size={16} className="ml-2" />
+                                      )}
+                                    </StepHeader>
+                                    {expandedExplanations[`${message.id}-${stepIndex}`] && (
+                                      <StepExplanation 
+                                        isVisible={expandedExplanations[`${message.id}-${stepIndex}`]} 
+                                        delay={delay} 
+                                      >
+                                        {step.explanation}
+                                      </StepExplanation>
+                                    )}
+                                  </StepContent>
+                                </Step>
+                              );
+                            })}
+                          </StepTimeline>
+                        )}
+                      </>
                     )}
                   </>
                 )}
               </Card>
             </div>
           ))}
-          {isWaitingForResponse && (
-            <div className="flex justify-start">
-              <TypingIndicator>
-                <Logo className="text-accent-foreground">iΛ</Logo>
-                <Dot />
-                <Dot />
-                <Dot />
-              </TypingIndicator>
-            </div>
-          )}
-          <div ref={messagesEndRef} /> {/* This empty div is our scroll anchor */}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 

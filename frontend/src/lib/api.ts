@@ -229,7 +229,8 @@ export const createMessage = async (conversationId: number, message: Message) =>
     const response = await api.post(`/api/conversations/${conversationId}/messages`, {
       type: message.type,
       content: message.content,
-      steps: message.steps
+      steps: message.steps,
+      strategy: message.strategy
     });
     return response.data;
   } catch (error) {
@@ -331,4 +332,5 @@ export interface Message {
   type: 'user' | 'ai';
   content: string;
   steps?: { step: string; explanation: string }[];
+  strategy?: string;
 }
