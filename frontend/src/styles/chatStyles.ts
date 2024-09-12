@@ -11,13 +11,13 @@ export const extendLineAnimation = keyframes`
 `;
 
 export const fadeOutAnimation = keyframes`
-  from { opacity: 1; max-height: 200px; margin-bottom: 1rem; }
+  from { opacity: 1; max-height: none; margin-bottom: 1rem; }
   to { opacity: 0; max-height: 0; margin-bottom: 0; }
 `;
 
 export const fadeInAnimation = keyframes`
   from { opacity: 0; max-height: 0; }
-  to { opacity: 1; max-height: 200px; }
+  to { opacity: 1; max-height: none; }
 `;
 
 export const stepRevealAnimation = keyframes`
@@ -58,10 +58,9 @@ export const StepTimeline = styled.ul`
   margin-top: 0.5rem;
   gap: 0.5rem;
   overflow: hidden;
-  transition: height 0.3s ease-in-out;
 `;
 
-export const Step = styled.li<{ isActive: boolean; delay: number }>`
+export const Step = styled.li<{ isActive: boolean; delay: number; height?: string }>`
   display: flex;
   align-items: flex-start;
   opacity: 0;
@@ -69,6 +68,8 @@ export const Step = styled.li<{ isActive: boolean; delay: number }>`
   animation-delay: ${props => props.delay}ms;
   position: relative;
   padding-left: 1rem;
+  height: auto;  // Allow arbitrary height
+  max-height: none;  // Remove any max-height restrictions
 `;
 
 export const StepText = styled.span<{ isActive: boolean; delay: number }>`
@@ -122,14 +123,13 @@ export const StepHeader = styled.div`
 `;
 
 export const StepExplanation = styled.p<{ isVisible: boolean; delay: number }>`
-  margin-top: 0.5rem;
   margin-left: 1.5rem;
   font-size: 0.8rem;
   color: var(--muted-foreground);
   opacity: ${props => props.isVisible ? 1 : 0};
-  max-height: ${props => props.isVisible ? '200px' : '0'};
-  transition: opacity 0.3s ease-in-out, max-height 0.3s ease-in-out;
+  max-height: ${props => props.isVisible ? '3000px' : '0'};
   overflow: hidden;
+  transition: opacity 0.3s ease-in-out, max-height 0.5s ease-in-out;
 
   ${props => props.isVisible && css`
     animation: ${fadeInAnimation} 0.3s ease-in-out forwards;

@@ -14,6 +14,7 @@ export interface Message {
   receivedStopThinking?: boolean;
   currentStep?: string;
   currentExplanation?: string;
+  lastStep?: Step;
 }
 
 export interface Conversation {

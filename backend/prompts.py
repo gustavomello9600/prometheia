@@ -21,7 +21,7 @@ Remember:
 """,
 
     'digest_conversation': [
-        ("system", """Given a conversation history, provide a concise summary of the most relevant points that are important for understanding the context of the conversation. Focus on key information, decisions, or topics that have been discussed."""),
+        ("system", """Given a conversation history, or the user first message, provide a concise summary of the most relevant points that are important for understanding the context of the conversation. Focus on key information, decisions, or topics that have been discussed."""),
         ("human", """**Conversation history**
         {conversation_history}
 
@@ -29,7 +29,7 @@ Remember:
     ],
 
     'infer_intention': [
-        ("system", """You are an AI designed to empathetically and insightfully infer user intentions. Given a user query and relevant points from the previous conversation, determine the primary intention, expected outcomes, and underlying needs. 
+        ("system", """You are an AI designed to empathetically and insightfully infer user intentions for your own use later. Given a user query and relevant points from the previous conversation, determine the primary intention, expected outcomes, and underlying needs. 
         For simple queries, a brief response is sufficient. For complex queries, provide a more detailed intention that captures the user's true goals and motivations. 
         Consider: What specific results does the user expect? What would satisfy them most? What might they really want if their query is unclear?
 

@@ -75,23 +75,25 @@ class LLMInteraction:
             yield {'type': 'steps', 'data': {'step': 'Understanding context', 'explanation': 'Interpreting conversation history'}}
             relevant_points = self.digest_conversation_history(conversation_history)
             logging.info(f"Relevant points from conversation history: {relevant_points}")
+            yield {'type': 'steps', 'data': {'step': 'Understanding context', 'explanation': f'{relevant_points}'}}
 
             combined_input = f"{last_message}\n\nRelevant points from previous conversation:\n{relevant_points}"
 
             yield {'type': 'steps', 'data': {'step': 'Understanding intent', 'explanation': 'Inferring user\'s intent'}}
             intention = self.infer_user_intention(combined_input)
             logging.info(f"Inferred intention: {intention}")
+            yield {'type': 'steps', 'data': {'step': 'Understanding intent', 'explanation': f'{intention}'}}
 
             yield {'type': 'steps', 'data': {'step': 'Selecting strategy', 'explanation': 'Reasoning on the best response method'}}
             strategy = self.select_strategy(intention, combined_input)
             logging.info(f"Selected strategy: {strategy.strategy}")
             yield {'type': 'strategy', 'data': STRATEGY_IDENTIFIER[strategy.strategy]}
+            yield {'type': 'steps', 'data': {'step': 'Selecting strategy', 'explanation': f'{strategy.rationale}\n\nStrategy selected: {STRATEGY_IDENTIFIER[strategy.strategy]}'}}
 
             yield from self.execute_strategy_stream(strategy, intention, conversation_history, combined_input)
         
         except RetryError as e:
             yield {'type': 'error', 'data': str(e)}
-            yield {'type': 'end'}
 
     def execute_strategy_stream(self, strategy, intention, conversation_history, combined_input):
         logging.info(f"Executing strategy: {strategy.strategy}")
@@ -110,6 +112,7 @@ class LLMInteraction:
     @traceable(run_type="chain")
     @groq_retry
     def standard_response_stream(self, intention, conversation_history):
+        yield {'type': 'steps', 'data': {'step': 'Generating response', 'explanation': 'Generating a standard response'}}
         logging.info("Generating standard response stream")
         prompt = ChatPromptTemplate.from_messages(PROMPTS['standard_response'])
         response_chain = prompt | self.smarter_llm
@@ -174,14 +177,16 @@ class LLMInteraction:
     def plan_actions_stream(self, intention, conversation_history, strategy_data):
         logging.info("Planning actions stream")
         # Implement streaming for plan_actions
-        yield {"type": "content", "data": "Plan Actions Strategy feature not fully implemented yet."}
+        yield {"type": "warning", "data": "Plan Actions Strategy feature not fully implemented yet. Falling back to direct response."}
+        yield from self.standard_response_stream(intention, conversation_history)
 
     @traceable(run_type="chain")
     @groq_retry
     def multi_agent_workflow_stream(self, intention, conversation_history, strategy_data):
         logging.info("Executing multi-agent workflow stream")
         # Implement streaming for multi_agent_workflow
-        yield {"type": "content", "data": "Multi-Agent Workflow Strategy feature not fully implemented yet."}
+        yield {"type": "warning", "data": "Multi-Agent Workflow Strategy feature not fully implemented yet. Falling back to direct response."}
+        yield from self.standard_response_stream(intention, conversation_history)
 
     @traceable(run_type="chain")
     @groq_retry

@@ -27,7 +27,7 @@ export function ChatMessages({
   children
 }: ChatMessagesProps) {
   return (
-    <ScrollArea className="flex-1 h-full">
+    <ScrollArea className="flex-1 h-full overflow-y-auto">
       <div className="space-y-4 p-4">
         {messages.map((message, index) => (
           <React.Fragment key={index}>

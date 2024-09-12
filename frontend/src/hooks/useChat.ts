@@ -18,7 +18,6 @@ export function useChat(
   const [initialRevealComplete, setInitialRevealComplete] = useState<{ [key: string]: boolean }>({});
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState(conversation?.title || '');
-
   const { toast } = useToast();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -82,21 +81,21 @@ export function useChat(
     if (stepQueueRef.current.length === 0) return;
     console.log(`[${getFormattedTimestamp()}] Processing step queue`);
     console.log(`[${getFormattedTimestamp()}] Queue before remove: ${JSON.stringify(stepQueueRef.current)}`);
-    const step = stepQueueRef.current.shift()!;
-    console.log(`[${getFormattedTimestamp()}] Queue after remove: ${JSON.stringify(stepQueueRef.current)}`);
+    const step = stepQueueRef.current.shift();
     
     setMessages(prevMessages => {
       const updatedMessages = [...prevMessages];
       const thinkingMessageIndex = updatedMessages.findIndex(msg => msg.isThinking);
-      if (thinkingMessageIndex !== -1) {
+      if (thinkingMessageIndex !== -1 && stepQueueRef.current.length > 0) { // Get the first step without removing it
         updatedMessages[thinkingMessageIndex] = {
           ...updatedMessages[thinkingMessageIndex],
-          currentStep: step.step,
-          currentExplanation: step.explanation,
+          currentStep: step!.step,
+          currentExplanation: step!.explanation,
         };
       }
       return updatedMessages;
     });
+    console.log(`[${getFormattedTimestamp()}] Queue after remove: ${JSON.stringify(stepQueueRef.current)}`);
   }, []);
 
   const queueStep = useCallback((step: QueuedStep) => {
@@ -141,7 +140,7 @@ export function useChat(
         resolve();
       }, 0);
     });
-  }, [messages, processStepQueue, stepDisplayTime]);
+  }, [processStepQueue, stepDisplayTime]);
 
   const stopThinking = useCallback(async (message: Message) => {
     console.log(`[${getFormattedTimestamp()}] Signaled stop`);
@@ -204,12 +203,29 @@ export function useChat(
       receivedStopThinking: false,
       currentStep: '',
       currentExplanation: '',
+      lastStep: { step: '', explanation: '' },
     };
   
     let accumulatedContent = '';
     let accumulatedSteps: Step[] = [];
     let accumulatedStrategy = '';
     let isStreamComplete = false;
+  
+    const saveAIMessage = async (msg: Message) => {
+      if (!conversation) return;
+    
+      try {
+        await createMessage(conversation.id, msg);
+        console.log('AI message saved successfully.');
+      } catch (error) {
+        console.error('Error saving AI message:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save the AI response. Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
   
     try {
       await createMessage(conversation.id, userMessage);
@@ -242,23 +258,33 @@ export function useChat(
   
         } else if (chunk.type === 'steps') {
           const newStep = chunk.data;
-          accumulatedSteps.push(newStep);
 
-          shouldScrollRef.current = true;
-          
-          queueStep(newStep);
-          
           if (!aiMessage.isThinking) {
+            queueStep({ ...newStep });
             aiMessage.isThinking = true;
             aiMessage.currentStep = '';
             aiMessage.currentExplanation = '';
             aiMessage.receivedStopThinking = false;
             aiMessage.ongoingQueueProcessing = false;
             startThinking(aiMessage);
+            shouldScrollRef.current = true;
           }
 
-          aiMessage.steps = accumulatedSteps;
-  
+          if (newStep.step === aiMessage.lastStep!.step) {
+            // Update the explanation of the last step without adding a new step
+            console.log(`[${getFormattedTimestamp()}] Updating explanation of the last step: ${JSON.stringify(newStep)}`);
+            aiMessage.steps![aiMessage.steps!.length - 1].explanation = newStep.explanation;
+          } else {
+            // It's a new step, so add it to the queue and update the state
+            accumulatedSteps.push(newStep);
+            
+            queueStep({ ...newStep });
+
+            aiMessage.steps = accumulatedSteps;
+          }
+
+          aiMessage.lastStep = newStep;
+
         } else if (chunk.type === 'strategy') {
           accumulatedStrategy = chunk.data;
           setMessages(prevMessages => {
@@ -278,6 +304,13 @@ export function useChat(
             title: "Error",
             description: chunk.data,
             variant: "destructive",
+          });
+        } else if (chunk.type === 'warning') {
+          console.warn('Warning from server:', chunk.data);
+          toast({
+            title: "Warning",
+            description: chunk.data,
+            variant: "default",
           });
         } else if (chunk.type === 'end') {
           isStreamComplete = true;
@@ -301,23 +334,27 @@ export function useChat(
     } finally {
       setIsProcessing(false);
     }
-  }, [conversation, messages, input, isProcessing, startThinking, stopThinking, queueStep, toast, stepDisplayTime]);
+  }, [conversation, messages, input, isProcessing, startThinking, stopThinking, queueStep, toast]);
 
-  const saveAIMessage = async (msg: Message) => {
-    if (!conversation) return;
-  
-    try {
-      await createMessage(conversation.id, msg);
-      console.log('AI message saved successfully.');
-    } catch (error) {
-      console.error('Error saving AI message:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save the AI response. Please try again.",
-        variant: "destructive",
+  const animateSteps = useCallback((messageId: string) => {
+    const message = messages.find(m => m.id === messageId);
+    if (message?.steps) {
+      message.steps.forEach((step, index) => {
+        setTimeout(() => {
+          setActiveMessageSteps(prev => ({
+            ...prev,
+            [messageId]: [...(prev[messageId] || []), index],
+          }));
+          if (message?.steps && index === message.steps.length - 1) {
+            setInitialRevealComplete(prev => ({
+              ...prev,
+              [messageId]: true
+            }));
+          }
+        }, index * 500);
       });
     }
-  };
+  }, [messages]);
 
   const toggleSteps = useCallback((messageId: string) => {
     setExpandedSteps(prev => {
@@ -354,27 +391,7 @@ export function useChat(
     if (!expandedSteps[messageId]) {
       animateSteps(messageId);
     }
-  }, [expandedSteps]);
-
-  const animateSteps = useCallback((messageId: string) => {
-    const message = messages.find(m => m.id === messageId);
-    if (message?.steps) {
-      message.steps.forEach((step, index) => {
-        setTimeout(() => {
-          setActiveMessageSteps(prev => ({
-            ...prev,
-            [messageId]: [...(prev[messageId] || []), index],
-          }));
-          if (message?.steps && index === message.steps.length - 1) {
-            setInitialRevealComplete(prev => ({
-              ...prev,
-              [messageId]: true
-            }));
-          }
-        }, index * 500);
-      });
-    }
-  }, [messages]);
+  }, [expandedSteps, animateSteps]);
 
   const toggleExplanation = useCallback((messageId: string, stepIndex: number) => {
     setExpandedExplanations(prev => ({
