@@ -25,7 +25,7 @@ Remember:
         ("human", """**Conversation history**
         {conversation_history}
 
-        Relevant points (provide as a bulleted list):""")
+        Be concise. Relevant points (provide as a bulleted list):""")
     ],
 
     'infer_intention': [
@@ -72,7 +72,7 @@ Remember:
         ("human", """## User query and relevant points:
         {combined_input}
 
-        Inferred intention: """)
+        Be concise. Inferred intention: """)
     ],
 
     'select_strategy': [

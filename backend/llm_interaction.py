@@ -30,6 +30,11 @@ groq_retry = retry(
     wait=wait_exponential(multiplier=2, min=4, max=10),
     stop=stop_after_attempt(3)
 )
+json_retry = retry(
+    retry=retry_if_exception_type(json.JSONDecodeError),
+    wait=wait_exponential(multiplier=2, min=4, max=10),
+    stop=stop_after_attempt(3)
+)
 
 
 def setup_logging():
@@ -123,54 +128,26 @@ class LLMInteraction:
 
     @traceable(run_type="chain")
     @groq_retry
+    @json_retry
     def multi_step_reasoning_stream(self, intention, conversation_history, combined_input):
         logging.info("Performing multi-step reasoning stream")
+
         prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning'])
-        
-        retry_parser = RetryOutputParser.from_llm(
-            parser=self.reasoning_parser,
-            llm=self.function_calling_llm,
-            max_retries=3
-        )
+        reasoning_chain = prompt | self.function_calling_llm | self.reasoning_parser
+        steps_data = reasoning_chain.invoke({"conversation_history": conversation_history, "combined_input": combined_input})
+            
+        for step in steps_data.steps:
+            yield {"type": "steps", "data": step.dict()}
 
-        reasoning_chain = prompt | self.function_calling_llm
-
-        try:
-            # Use the retry_parser with the reasoning_chain
-            raw_output = reasoning_chain.invoke({
-                "conversation_history": conversation_history,
-                "combined_input": combined_input
-            })
-            
-            logging.debug(f"Raw output from reasoning chain: {raw_output}")
-            
-            # Ensure raw_output is a string
-            if not isinstance(raw_output, str):
-                if hasattr(raw_output, 'content'):
-                    raw_output = raw_output.content
-                else:
-                    raw_output = str(raw_output)
-            
-            steps_data = retry_parser.parse_with_prompt(raw_output, (prompt
-                                                                     .format_messages(conversation_history=conversation_history,
-                                                                                      combined_input=combined_input)))
-            
-            for step in steps_data.steps:
-                yield {"type": "steps", "data": step.dict()}
-
-            message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
-            for chunk in (message_prompt | self.smarter_llm).stream({
-                "DEFAULT_HEADER": PROMPTS['default_header'],
-                "intention": intention,
-                "steps": json.dumps([step.dict() for step in steps_data.steps]),
-                "conversation_history": conversation_history
-            }):
-                if chunk.content:
-                    yield {"type": "content", "data": chunk.content}
-        except Exception as e:
-            logging.error(f"Error in multi-step reasoning: {str(e)}")
-            logging.exception("Full traceback:")
-            yield {"type": "error", "data": "An error occurred while processing your request. Please try again."}
+        message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
+        for chunk in (message_prompt | self.smarter_llm).stream({
+            "DEFAULT_HEADER": PROMPTS['default_header'],
+            "intention": intention,
+            "steps": json.dumps([step.dict() for step in steps_data.steps]),
+            "conversation_history": conversation_history
+        }):
+            if chunk.content:
+                yield {"type": "content", "data": chunk.content}
 
     @traceable(run_type="chain")
     @groq_retry
@@ -212,32 +189,13 @@ class LLMInteraction:
 
     @traceable(run_type="chain")
     @groq_retry
+    @json_retry
     def select_strategy(self, intention, combined_input):
         logging.info("Selecting strategy")
+
         prompt = ChatPromptTemplate.from_messages(PROMPTS['select_strategy'])
-        
-        retry_parser = RetryOutputParser.from_llm(
-            parser=self.strategy_parser,
-            llm=self.function_calling_llm,
-            max_retries=3
-        )
-
-        # Create the chain without the retry parser
-        strategy_chain = prompt | self.function_calling_llm
-
-        # Invoke the chain and get the raw output
-        raw_output = strategy_chain.invoke({"intention": intention, "combined_input": combined_input})
-
-        # Extract the text content from the raw output
-        if isinstance(raw_output, dict) and 'generations' in raw_output:
-            text_output = raw_output['generations'][0][0].text
-        elif hasattr(raw_output, 'content'):
-            text_output = raw_output.content
-        else:
-            text_output = str(raw_output)
-
-        # Use parse_with_prompt to handle the retry logic
-        strategy_data = retry_parser.parse_with_prompt(text_output, prompt)
+        strategy_chain = prompt | self.function_calling_llm | self.strategy_parser
+        strategy_data = strategy_chain.invoke({"intention": intention, "combined_input": combined_input})
 
         logging.info(f"Output from strategy selector: {strategy_data}")
         return strategy_data
