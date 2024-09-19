@@ -7,8 +7,8 @@ from pydantic import BaseModel, Field
 
 import groq
 from langchain.prompts import ChatPromptTemplate
-from langchain.output_parsers import OutputParserException 
 from langchain_core.output_parsers import StrOutputParser
+from langchain_core.exceptions import OutputParserException
 from langsmith import traceable, trace
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, RetryError
 
@@ -30,7 +30,7 @@ groq_retry = retry(
     stop=stop_after_attempt(3)
 )
 json_retry = retry(
-    retry=retry_if_exception_type(json.JSONDecodeError, OutputParserException),
+    retry=retry_if_exception_type((json.JSONDecodeError, OutputParserException)),
     wait=wait_exponential(multiplier=2, min=4, max=10),
     stop=stop_after_attempt(3)
 )
