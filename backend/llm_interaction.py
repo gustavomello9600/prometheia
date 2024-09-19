@@ -5,10 +5,9 @@ from typing import Dict, List, Any, Generator
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
 
-from groq import InternalServerError as GroqInternalServerError
+import groq
 from langchain.prompts import ChatPromptTemplate
-from langchain.output_parsers import RetryOutputParser
-from langchain_core.output_parsers import JsonOutputParser 
+from langchain.output_parsers import OutputParserException 
 from langchain_core.output_parsers import StrOutputParser
 from langsmith import traceable, trace
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, RetryError
@@ -26,12 +25,12 @@ STRATEGY_IDENTIFIER = {
 
 
 groq_retry = retry(
-    retry=retry_if_exception_type(GroqInternalServerError),
+    retry=retry_if_exception_type((groq.InternalServerError, groq.APIError)),
     wait=wait_exponential(multiplier=2, min=4, max=10),
     stop=stop_after_attempt(3)
 )
 json_retry = retry(
-    retry=retry_if_exception_type(json.JSONDecodeError),
+    retry=retry_if_exception_type(json.JSONDecodeError, OutputParserException),
     wait=wait_exponential(multiplier=2, min=4, max=10),
     stop=stop_after_attempt(3)
 )
@@ -112,6 +111,7 @@ class LLMInteraction:
             yield from self.multi_agent_workflow_stream(intention, conversation_history, strategy)
         else:
             logging.warning(f"Unknown strategy {strategy.strategy}, falling back to multi-step reasoning")
+            yield {'type': 'warning', 'data': f'Unknown strategy {strategy.strategy}, falling back to multi-step reasoning'}
             yield from self.multi_step_reasoning_stream(intention, conversation_history, combined_input)
 
     @traceable(run_type="chain")
@@ -122,7 +122,9 @@ class LLMInteraction:
         prompt = ChatPromptTemplate.from_messages(PROMPTS['standard_response'])
         response_chain = prompt | self.smarter_llm
 
-        for chunk in response_chain.stream({"DEFAULT_HEADER": PROMPTS['default_header'], "intention": intention, "conversation_history": conversation_history}):
+        response_stream = response_chain.stream({"DEFAULT_HEADER": PROMPTS['default_header'], "intention": intention, "conversation_history": conversation_history})
+
+        for chunk in response_stream:
             if chunk.content:
                 yield {"type": "content", "data": chunk.content}
 
@@ -140,12 +142,13 @@ class LLMInteraction:
             yield {"type": "steps", "data": step.dict()}
 
         message_prompt = ChatPromptTemplate.from_messages(PROMPTS['multi_step_reasoning_response'])
-        for chunk in (message_prompt | self.smarter_llm).stream({
+        response_stream = (message_prompt | self.smarter_llm).stream({
             "DEFAULT_HEADER": PROMPTS['default_header'],
             "intention": intention,
             "steps": json.dumps([step.dict() for step in steps_data.steps]),
             "conversation_history": conversation_history
-        }):
+        })
+        for chunk in response_stream:
             if chunk.content:
                 yield {"type": "content", "data": chunk.content}
 
